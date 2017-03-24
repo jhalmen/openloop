@@ -16,3 +16,10 @@
 ## You should have received a copy of the GNU General Public License
 ## along with this program. If not, see <http://www.gnu.org/licenses/>.
 ##
+BINARY = miniblink
+
+OPENCM3_DIR = libopencm3
+DEVICE = stm32f401rct6
+# include ./libopencm3/ld/Makefile.linker
+
+include libopencm3.target.mk
