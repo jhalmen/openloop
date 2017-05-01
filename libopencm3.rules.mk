@@ -42,7 +42,7 @@ STFLASH		= $(shell which st-flash)
 STYLECHECK	:= /checkpatch.pl
 STYLECHECKFLAGS	:= --no-tree -f --terse --mailback
 STYLECHECKFILES	:= $(shell find . -name '*.[ch]')
-OPT		:= -Os
+OPT		:= -O0
 CSTD		?= -std=c99
 
 
@@ -133,7 +133,9 @@ endif
 ###############################################################################
 # Used libraries
 
-LDLIBS		+= -Wl,--start-group -lc -lgcc -lnosys -Wl,--end-group
+ LDLIBS		+= -Wl,--start-group -lc -lgcc -lnosys -Wl,--end-group
+# LDLIBS		+= -Wl,--start-group -lc -lgcc -Wl,--end-group
+# LDLIBS 		+= --specs=rdimon.specs #-lrdimon -nostartfiles
 
 ###############################################################################
 ###############################################################################
