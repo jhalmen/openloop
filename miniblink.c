@@ -20,7 +20,9 @@ void gpio_setup(void);
 void pll_setup(void);
 void plli2s_setup(uint16_t n, uint8_t r);
 void i2s_init_master_receive(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe);
+void i2s_init_master_transmit(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe);
 void i2s_init_slave_transmit(uint32_t i2s);
+void i2s_init_slave_receive(uint32_t i2s);
 void i2s_write(uint32_t i2s, int16_t data);
 void systick_setup(uint32_t tick_frequency);
 uint32_t i2s_read(uint32_t i2s);
@@ -55,12 +57,65 @@ int main(void)
 	mckoe = 1;
 	/* enable SPI2/I2S2 peripheral clock */
 	rcc_periph_clock_enable(RCC_SPI2);
-	/* use interrupts */
-	spi_enable_tx_buffer_empty_interrupt(I2S2ext);
-	nvic_enable_irq(NVIC_SPI2_IRQ);
+	/* use dma */
+	rcc_periph_clock_enable(RCC_DMA1);
+	int16_t left = 0xBABE;
+	int16_t right = 0xFACE;
+	int16_t volume = 0x1000;
+	int16_t low[40], high[40];
+	for (int i = 0; i < 40; ++i)
+		if (i%2 == 0){
+			low[i] = -volume;
+			high[i] = volume;
+		} else {
+			low[i] = 0;
+			high[i] = 0;
+		}
+
+	int16_t in_left = 0;
+	int16_t in_right = 0;
+
+	dma_set_transfer_mode(DMA1, DMA_STREAM4, DMA_SxCR_DIR_MEM_TO_PERIPHERAL);
+	dma_set_peripheral_size(DMA1, DMA_STREAM4, DMA_SxCR_PSIZE_16BIT);
+	dma_set_peripheral_address(DMA1, DMA_STREAM4, (uint32_t) &SPI_DR(I2S2));
+	dma_channel_select(DMA1, DMA_STREAM4, DMA_SxCR_CHSEL_0);
+	dma_enable_double_buffer_mode(DMA1, DMA_STREAM4);
+	dma_set_memory_size(DMA1, DMA_STREAM4, DMA_SxCR_MSIZE_16BIT);
+	dma_enable_memory_increment_mode(DMA1, DMA_STREAM4);
+	dma_set_memory_address(DMA1, DMA_STREAM4, (uint32_t) &left);
+	dma_set_memory_address_1(DMA1, DMA_STREAM4, (uint32_t) &right);
+	dma_set_number_of_data(DMA1, DMA_STREAM4, 1);
+	uint32_t dma1 = DMA1, stream4 = DMA_STREAM4;
+	dma_get_target(dma1, stream4);
+	uint32_t tamacr = DMA1_S4CR;
+
+	/* dma ext rx */
+	dma_set_transfer_mode(DMA1, DMA_STREAM3, DMA_SxCR_DIR_PERIPHERAL_TO_MEM);
+	dma_set_peripheral_size(DMA1, DMA_STREAM3, DMA_SxCR_PSIZE_16BIT);
+	dma_set_peripheral_address(DMA1, DMA_STREAM3, (uint32_t) &SPI_DR(I2S2ext));
+	dma_channel_select(DMA1, DMA_STREAM3, DMA_SxCR_CHSEL_3);
+	dma_enable_double_buffer_mode(DMA1, DMA_STREAM3);
+	dma_set_memory_size(DMA1, DMA_STREAM3, DMA_SxCR_MSIZE_16BIT);
+	dma_enable_memory_increment_mode(DMA1, DMA_STREAM3);
+	dma_set_memory_address(DMA1, DMA_STREAM3, (uint32_t) &in_left);
+	dma_set_memory_address_1(DMA1, DMA_STREAM3, (uint32_t) &in_right);
+	dma_set_number_of_data(DMA1, DMA_STREAM3, 1);
+
+	dma_enable_stream(DMA1, DMA_STREAM3);
+	spi_enable_rx_dma(I2S2ext);
+
+
+
+	dma_enable_stream(DMA1, DMA_STREAM4);
+	spi_enable_tx_dma(I2S2);
+	/* /1* use interrupts *1/ */
+	/* spi_enable_tx_buffer_empty_interrupt(I2S2ext); */
+	/* nvic_enable_irq(NVIC_SPI2_IRQ); */
 	/* slave has to be enabled before the master! */
-	i2s_init_slave_transmit(I2S2ext);
-	i2s_init_master_receive(I2S2, div, odd, mckoe);
+	i2s_init_slave_receive(I2S2ext);
+	SPI_I2SCFGR(I2S2ext) |= SPI_I2SCFGR_I2SE;
+	i2s_init_master_transmit(I2S2, div, odd, mckoe);
+	SPI_I2SCFGR(I2S2) |= SPI_I2SCFGR_I2SE;
 
 	/* test output without interrupt */
 	/* this should make a sawtooth signal */
@@ -100,7 +155,12 @@ int main(void)
 		/* 	gpio_toggle(GPIOA,GPIO12); */
 
 			/* __asm__("wfi"); */
-			/* __asm__("nop"); */
+		/* __asm__("wfe"); */
+			__asm__("nop");
+			if (in_left)
+				in_left = 0;
+			if (in_right)
+				in_right = 0;
 	}
 	return 0;
 }
@@ -109,7 +169,7 @@ void spi2_isr(void)
 {
 	if(SPI_SR(I2S2ext) & SPI_SR_CHSIDE)
 		i2s_write(I2S2ext, 0x0FAC);
-	else i2s_write(I2S2ext, 0xFAB0);
+	else i2s_write(I2S2ext, 0x0FAB);
 }
 
 void gpio_setup(void)
@@ -216,9 +276,26 @@ void i2s_init_master_receive(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mck
 			SPI_I2SCFGR_I2SSTD_I2S_PHILIPS |
 			SPI_I2SCFGR_DATLEN_16BIT |
 			SPI_I2SCFGR_CHLEN;  /*only if chlen=32bit*/
-	/* finally enable the peripheral */
 	SPI_I2SCFGR(i2s) |= cfg;
-	SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SE;
+	/* finally enable the peripheral */
+	/* SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SE; */
+}
+
+void i2s_init_master_transmit(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe)
+{
+	/* set prescaler register */
+	uint16_t pre = (((mckoe & 0x1) << 9) |
+		((odd & 0x1) << 8) | div);
+	SPI_I2SPR(i2s) = pre;
+	/* set configuration register */
+	uint32_t cfg = SPI_I2SCFGR_I2SMOD |
+			SPI_I2SCFGR_I2SCFG_MASTER_TRANSMIT |
+			SPI_I2SCFGR_I2SSTD_I2S_PHILIPS |
+			SPI_I2SCFGR_DATLEN_16BIT |
+			SPI_I2SCFGR_CHLEN;  /*only if chlen=32bit*/
+	SPI_I2SCFGR(i2s) |= cfg;
+	/* finally enable the peripheral */
+	/* SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SE; */
 }
 
 void i2s_init_slave_transmit(uint32_t i2s)
@@ -228,7 +305,17 @@ void i2s_init_slave_transmit(uint32_t i2s)
 			SPI_I2SCFGR_I2SSTD_I2S_PHILIPS |
 			SPI_I2SCFGR_DATLEN_16BIT |
 			SPI_I2SCFGR_CHLEN;  /*only if chlen=32bit*/
-	SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SE;
+	/* SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SE; */
+}
+
+void i2s_init_slave_receive(uint32_t i2s)
+{
+	SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SMOD |
+			SPI_I2SCFGR_I2SCFG_SLAVE_RECEIVE |
+			SPI_I2SCFGR_I2SSTD_I2S_PHILIPS |
+			SPI_I2SCFGR_DATLEN_16BIT |
+			SPI_I2SCFGR_CHLEN;  /*only if chlen=32bit*/
+	/* SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SE; */
 }
 
 void i2s_write(uint32_t i2s, int16_t data)
