@@ -181,14 +181,16 @@ void gpio_setup(void)
 	rcc_periph_clock_enable(RCC_GPIOC);
 	gpio_set_af(GPIOC, GPIO_AF5, GPIO6);
 	gpio_mode_setup(GPIOC, GPIO_MODE_AF,
-			GPIO_PUPD_NONE, GPIO6);
+			GPIO_PUPD_PULLDOWN, GPIO6);
 	rcc_periph_clock_enable(RCC_GPIOB);
 	gpio_set_af(GPIOB, GPIO_AF5, GPIO15 | GPIO13 | GPIO12);
+	gpio_set_output_options(GPIOB, GPIO_OTYPE_PP,
+			GPIO_OSPEED_25MHZ, GPIO13);
 	gpio_mode_setup(GPIOB, GPIO_MODE_AF,
-			GPIO_PUPD_NONE, GPIO15 | GPIO13 | GPIO12);
+			GPIO_PUPD_PULLDOWN, GPIO15 | GPIO13 | GPIO12);
 	/* i2s2ext pin */
 	gpio_set_af(GPIOC, GPIO_AF6, GPIO2);
-	gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO2);
+	gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_PULLDOWN, GPIO2);
 
 	/* mco */
 	/* enable clock to GPIOC */
