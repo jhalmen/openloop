@@ -16,3 +16,32 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef HARDWARE_H
+#define HARDWARE_H
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/flash.h>
+#include <libopencm3/stm32/gpio.h>
+#include <libopencm3/cm3/nvic.h>
+#include <libopencm3/cm3/systick.h>
+#include <libopencm3/stm32/spi.h>
+#include <libopencm3/stm32/dma.h>
+#include <libopencm3/stm32/i2c.h>
+void led_setup(void);
+#define led_on() gpio_set(GPIOA,GPIO12)
+#define led_off() gpio_clear(GPIOA,GPIO12)
+#define led_toggle() gpio_toggle(GPIOA,GPIO12)
+void gpio_setup(void);
+void pll_setup(void);
+void plli2s_setup(uint16_t n, uint8_t r);
+void i2s_init_master_receive(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe);
+void i2s_init_master_transmit(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe);
+void i2s_init_slave_transmit(uint32_t i2s);
+void i2s_init_slave_receive(uint32_t i2s);
+void systick_setup(uint32_t tick_frequency);
+uint32_t i2s_read(uint32_t i2s);
+uint8_t chkside(uint32_t i2s);
+
+void send_codec_cmd(uint16_t cmd);
+void i2c_setup(void);
+
+#endif //HARDWARE_H
