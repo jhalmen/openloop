@@ -40,8 +40,34 @@ void i2s_init_slave_receive(uint32_t i2s);
 void systick_setup(uint32_t tick_frequency);
 uint32_t i2s_read(uint32_t i2s);
 uint8_t chkside(uint32_t i2s);
+void enable_i2s(uint32_t i2s);
 
 void send_codec_cmd(uint16_t cmd);
 void i2c_setup(void);
+
+struct dma_channel {
+	uint32_t dma;
+	uint32_t stream;
+	uint8_t direction;
+	uint32_t channel;
+	uint32_t paddress;
+	uint32_t psize;
+	uint8_t pinc;
+	uint32_t maddress;
+	uint32_t maddress1;
+	uint32_t msize;
+	uint8_t minc;
+	uint8_t circ;
+	uint32_t doublebuf;
+	uint32_t prio;
+	uint16_t numberofdata;
+};
+
+void init_dma_channel(struct dma_channel* chan);
+
+/* delete this debug function */
+uint32_t get_i2c_stat1(void);
+/* delete this debug function */
+uint32_t get_i2c_stat2(void);
 
 #endif //HARDWARE_H

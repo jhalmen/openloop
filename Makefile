@@ -16,8 +16,8 @@
 ## You should have received a copy of the GNU General Public License
 ## along with this program. If not, see <http://www.gnu.org/licenses/>.
 ##
-BINARY = miniblink
-SOURCES = miniblink.c wm8778.c hardware.c
+BINARY = loop
+SOURCES = main.c wm8778.c hardware.c
 
 OPENCM3_DIR = libopencm3
 DEVICE = stm32f401rct6

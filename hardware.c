@@ -120,8 +120,6 @@ void i2s_init_master_receive(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mck
 			SPI_I2SCFGR_DATLEN_16BIT |
 			SPI_I2SCFGR_CHLEN;  /*only if chlen=32bit*/
 	SPI_I2SCFGR(i2s) |= cfg;
-	/* finally enable the peripheral */
-	SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SE;
 }
 
 void i2s_init_master_transmit(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe)
@@ -137,8 +135,6 @@ void i2s_init_master_transmit(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mc
 			SPI_I2SCFGR_DATLEN_16BIT |
 			SPI_I2SCFGR_CHLEN;  /*only if chlen=32bit*/
 	SPI_I2SCFGR(i2s) |= cfg;
-	/* finally enable the peripheral */
-	SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SE;
 }
 
 void i2s_init_slave_transmit(uint32_t i2s)
@@ -149,8 +145,6 @@ void i2s_init_slave_transmit(uint32_t i2s)
 			SPI_I2SCFGR_I2SSTD_I2S_PHILIPS |
 			SPI_I2SCFGR_DATLEN_16BIT |
 			SPI_I2SCFGR_CHLEN;  /*only if chlen=32bit*/
-	/* finally enable the peripheral */
-	SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SE;
 }
 
 void i2s_init_slave_receive(uint32_t i2s)
@@ -161,7 +155,10 @@ void i2s_init_slave_receive(uint32_t i2s)
 			SPI_I2SCFGR_I2SSTD_I2S_PHILIPS |
 			SPI_I2SCFGR_DATLEN_16BIT |
 			SPI_I2SCFGR_CHLEN;  /*only if chlen=32bit*/
-	/* finally enable the peripheral */
+}
+
+void enable_i2s(uint32_t i2s)
+{
 	SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SE;
 }
 
@@ -188,7 +185,7 @@ void i2c_setup(void)
 	gpio_set_output_options(GPIOB, GPIO_OTYPE_OD,
 			GPIO_OSPEED_50MHZ, GPIO6 | GPIO7);
 	gpio_mode_setup(GPIOB, GPIO_MODE_AF,
-			GPIO_PUPD_PULLUP, GPIO6 | GPIO7);
+			GPIO_PUPD_NONE, GPIO6 | GPIO7);
 	/* i2c periph*/
 	rcc_periph_clock_enable(RCC_I2C1);
 	i2c_set_clock_frequency(I2C1, I2C_CR2_FREQ_42MHZ);
@@ -202,4 +199,37 @@ void i2c_setup(void)
 	/* max rise time = 300ns */
 	i2c_set_trise(I2C1, 13);
 	i2c_peripheral_enable(I2C1);
+}
+ /* delete this debug function */
+uint32_t get_i2c_stat1(void)
+{
+	return I2C_SR1(I2C1);
+}
+ /* delete this debug function */
+uint32_t get_i2c_stat2(void)
+{
+	return I2C_SR2(I2C1);
+}
+
+void init_dma_channel(struct dma_channel *chan)
+{
+	dma_set_transfer_mode(chan->dma, chan->stream, chan->direction);
+	dma_set_peripheral_size(chan->dma, chan->stream, chan->psize);
+	dma_set_peripheral_address(chan->dma, chan->stream, chan->paddress);
+	if (chan->pinc)
+		dma_enable_peripheral_increment_mode(chan->dma, chan->stream);
+	dma_channel_select(chan->dma, chan->stream, chan->channel);
+	if(chan->doublebuf) {
+		dma_enable_double_buffer_mode(chan->dma, chan->stream);
+		dma_set_memory_address_1(chan->dma, chan->stream, chan->maddress1);
+	} else if (chan->circ) {
+		dma_enable_circular_mode(chan->dma, chan->stream);
+	}
+	dma_set_memory_size(chan->dma, chan->stream, chan->msize);
+	if (chan->minc)
+		dma_enable_memory_increment_mode(chan->dma, chan->stream);
+	dma_set_memory_address(chan->dma, chan->stream, chan->maddress);
+	dma_set_number_of_data(chan->dma, chan->stream, chan->numberofdata);
+	dma_set_priority(chan->dma, chan->stream, chan->prio);
+	dma_enable_stream(chan->dma, chan->stream);
 }
