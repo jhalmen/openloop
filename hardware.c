@@ -25,13 +25,6 @@ void send_codec_cmd(uint16_t cmd)
 	i2c_transfer7(I2C1, 0x34>>1, data, 2, 0, 0);
 }
 
-void led_setup(void)
-{
-	rcc_periph_clock_enable(RCC_GPIOA);
-	gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO12);
-}
-
-void gpio_setup(void)
 {
 	/* i2s2 pins */
 	rcc_periph_clock_enable(RCC_GPIOC);

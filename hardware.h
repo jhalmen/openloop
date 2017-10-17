@@ -26,11 +26,6 @@
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/dma.h>
 #include <libopencm3/stm32/i2c.h>
-void led_setup(void);
-#define led_on() gpio_set(GPIOA,GPIO12)
-#define led_off() gpio_clear(GPIOA,GPIO12)
-#define led_toggle() gpio_toggle(GPIOA,GPIO12)
-void gpio_setup(void);
 void pll_setup(void);
 void plli2s_setup(uint16_t n, uint8_t r);
 void i2s_init_master_receive(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe);

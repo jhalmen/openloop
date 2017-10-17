@@ -34,10 +34,7 @@ int main(void)
 	int16_t instream[AUDIOBUFFERSIZE];
 
 	pll_setup();
-	led_setup();
-	led_on();
-	gpio_setup();
-	systick_setup(100);
+	systick_setup(10);
 
 	i2c_setup();
 	get_i2c_stat1();
