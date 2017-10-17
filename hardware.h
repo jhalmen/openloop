@@ -41,11 +41,13 @@ void systick_setup(uint32_t tick_frequency);
 uint32_t i2s_read(uint32_t i2s);
 uint8_t chkside(uint32_t i2s);
 void enable_i2s(uint32_t i2s);
+void setup_adc(void);
 
 void send_codec_cmd(uint16_t cmd);
 void i2c_setup(void);
 
 struct dma_channel {
+	uint32_t rcc;
 	uint32_t dma;
 	uint32_t stream;
 	uint8_t direction;

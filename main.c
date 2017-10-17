@@ -62,10 +62,10 @@ int main(void)
 	mckoe = 1;
 	/* enable SPI2/I2S2 peripheral clock */
 	rcc_periph_clock_enable(RCC_SPI2);
-	/* use dma */
-	rcc_periph_clock_enable(RCC_DMA1);
 
+	/* use dma */
 	struct dma_channel audioout = {
+		.rcc = RCC_DMA1,
 		.dma = DMA1,
 		.stream = DMA_STREAM4,
 		.direction = DMA_SxCR_DIR_MEM_TO_PERIPHERAL,
@@ -83,6 +83,7 @@ int main(void)
 	};
 
 	struct dma_channel audioin = {
+		.rcc = RCC_DMA1,
 		.dma = DMA1,
 		.stream = DMA_STREAM3,
 		.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM,

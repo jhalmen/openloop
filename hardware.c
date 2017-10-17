@@ -216,6 +216,7 @@ uint32_t get_i2c_stat2(void)
 
 void init_dma_channel(struct dma_channel *chan)
 {
+	rcc_periph_clock_enable(chan->rcc);
 	dma_set_transfer_mode(chan->dma, chan->stream, chan->direction);
 	dma_set_peripheral_size(chan->dma, chan->stream, chan->psize);
 	dma_set_peripheral_address(chan->dma, chan->stream, chan->paddress);
