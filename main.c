@@ -33,6 +33,9 @@ int main(void)
 	int16_t outstream[AUDIOBUFFERSIZE];
 	int16_t instream[AUDIOBUFFERSIZE];
 
+	/* dma memory location for volume potentiometers */
+	uint16_t chanvol[3] = {0,0,0};
+
 	pll_setup();
 	systick_setup(10);
 
@@ -97,16 +100,35 @@ int main(void)
 		.numberofdata = AUDIOBUFFERSIZE
 	};
 
+	struct dma_channel volumes = {
+		.rcc = RCC_DMA2,
+		.dma = DMA2,
+		.stream = DMA_STREAM0,
+		.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM,
+		.channel = DMA_SxCR_CHSEL_0,
+		.psize = DMA_SxCR_PSIZE_16BIT,
+		.paddress = (uint32_t) &ADC_DR(ADC1),
+		.msize = DMA_SxCR_MSIZE_16BIT,
+		.maddress = (uint32_t) chanvol,
+		.doublebuf = 0,
+		.minc = 1,
+		.circ = 1,
+		.pinc = 0,
+		.prio = DMA_SxCR_PL_LOW,
+		.numberofdata = 3
+	};
+
 	//play ( buffer of single audio, number of points)
 	uint16_t *address = sine_32;
 	uint16_t n = AUDIOBUFFERSIZE/2;
 	for (int i = 0; i < n; ++i){
 		outstream[2*i] = address[i] - 0x8000;
-		outstream[2*i+1] = address[i] - 0x8000;
+		outstream[2*i+1] = address[(i+n/2)%n] - 0x8000;
 	}
 
 	init_dma_channel(&audioin);
 	init_dma_channel(&audioout);
+	init_dma_channel(&volumes);
 	i2s2_pin_setup();
 	i2s_init_slave_receive(I2S2ext);
 	i2s_init_master_transmit(I2S2, div, odd, mckoe);
@@ -116,6 +138,7 @@ int main(void)
 	enable_i2s(I2S2ext);
 	enable_i2s(I2S2);
 
+	setup_adc();
 	while (1) {
 			/* __asm__("wfi"); */
 			/* __asm__("wfe"); */

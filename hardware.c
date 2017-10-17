@@ -231,3 +231,30 @@ void init_dma_channel(struct dma_channel *chan)
 	dma_set_priority(chan->dma, chan->stream, chan->prio);
 	dma_enable_stream(chan->dma, chan->stream);
 }
+
+void setup_adc(void)
+{
+	rcc_periph_clock_enable(RCC_GPIOA);
+	rcc_periph_clock_enable(RCC_ADC1);
+
+	gpio_mode_setup(GPIOA, GPIO_MODE_ANALOG, GPIO_PUPD_NONE, GPIO5);
+	gpio_mode_setup(GPIOA, GPIO_MODE_ANALOG, GPIO_PUPD_NONE, GPIO6);
+	gpio_mode_setup(GPIOA, GPIO_MODE_ANALOG, GPIO_PUPD_NONE, GPIO7);
+
+	adc_set_resolution(ADC1, ADC_CR1_RES_8BIT);
+	adc_set_sample_time_on_all_channels(ADC1, ADC_SMPR_SMP_480CYC);
+	adc_set_right_aligned(ADC1);
+	adc_enable_scan_mode(ADC1);
+	adc_set_continuous_conversion_mode(ADC1);
+	uint8_t channels[3] = {5,6,7};
+	adc_set_regular_sequence(ADC1, 3, channels);
+
+	adc_enable_dma(ADC1);
+	adc_set_dma_continue(ADC1);
+	adc_power_on(ADC1);
+	/* Wait for ADC starting up. */
+	int i;
+	for (i = 0; i < 800000; i++)
+		__asm__("nop");
+	adc_start_conversion_regular(ADC1);
+}

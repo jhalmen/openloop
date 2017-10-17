@@ -26,6 +26,7 @@
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/dma.h>
 #include <libopencm3/stm32/i2c.h>
+#include <libopencm3/stm32/adc.h>
 void pll_setup(void);
 void plli2s_setup(uint16_t n, uint8_t r);
 void i2s2_pin_setup(void);
