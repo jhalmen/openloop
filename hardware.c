@@ -25,6 +25,7 @@ void send_codec_cmd(uint16_t cmd)
 	i2c_transfer7(I2C1, 0x34>>1, data, 2, 0, 0);
 }
 
+void i2s2_pin_setup(void)
 {
 	/* i2s2 pins */
 	rcc_periph_clock_enable(RCC_GPIOC);
@@ -188,7 +189,7 @@ void i2c_setup(void)
 	i2c_set_fast_mode(I2C1);
 	/* ~ 200kHz freq: */
 	/* i2c_set_ccr(I2C1, 38); */
-	/* 100kHz freq: */ 
+	/* 100kHz freq: */
 	/* i2c_set_ccr(I2C1, 42); */
 	/* following results in approx 40kHz freq */
 	i2c_set_ccr(I2C1, 336);

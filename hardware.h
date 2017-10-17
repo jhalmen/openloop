@@ -28,6 +28,7 @@
 #include <libopencm3/stm32/i2c.h>
 void pll_setup(void);
 void plli2s_setup(uint16_t n, uint8_t r);
+void i2s2_pin_setup(void);
 void i2s_init_master_receive(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe);
 void i2s_init_master_transmit(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe);
 void i2s_init_slave_transmit(uint32_t i2s);

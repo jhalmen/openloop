@@ -107,7 +107,7 @@ int main(void)
 
 	init_dma_channel(&audioin);
 	init_dma_channel(&audioout);
-
+	i2s2_pin_setup();
 	i2s_init_slave_receive(I2S2ext);
 	i2s_init_master_transmit(I2S2, div, odd, mckoe);
 	spi_enable_rx_dma(I2S2ext);
