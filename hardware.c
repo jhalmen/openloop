@@ -51,8 +51,11 @@ void gpio_setup(void)
 
 void pll_setup(void)
 {
+	/* enable external oscillator first */
+	rcc_osc_on(RCC_HSE);
+	rcc_wait_for_osc_ready(RCC_HSE);
 	/* set main pll 84MHz */
-	uint8_t pllm = 8;
+	uint8_t pllm = 2;
 	uint16_t plln = 336;
 	uint8_t pllp = 8;
 	uint8_t pllq = 14;
@@ -60,7 +63,7 @@ void pll_setup(void)
 	/* set flash waitstates! */
 	flash_set_ws(FLASH_ACR_PRFTEN | FLASH_ACR_DCEN |
 		FLASH_ACR_ICEN | FLASH_ACR_LATENCY_2WS);
-	rcc_set_main_pll_hsi(pllm, plln, pllp, pllq, pllr);
+	rcc_set_main_pll_hse(pllm, plln, pllp, pllq, pllr);
 	/* set prescalers for the different domains */
 	rcc_set_hpre(RCC_CFGR_HPRE_DIV_NONE);
 	rcc_set_ppre1(RCC_CFGR_PPRE_DIV_2);
