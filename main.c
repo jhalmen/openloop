@@ -103,8 +103,8 @@ int main(void)
 	uint16_t *address = sine_32;
 	uint16_t n = AUDIOBUFFERSIZE/2;
 	for (int i = 0; i < n; ++i){
-		outstream[2*i] = address[i];
-		outstream[2*i+1] = address[i];
+		outstream[2*i] = address[i] - 0x8000;
+		outstream[2*i+1] = address[i] - 0x8000;
 	}
 
 	init_dma_channel(&audioin);
