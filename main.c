@@ -20,7 +20,6 @@
 #include "wm8778.h"
 #include "hardware.h"
 #include "sine.h"
-/* TODO: I2S2ext pin change for v0.1! */
 
 #define AUDIOBUFFERSIZE (64)
 

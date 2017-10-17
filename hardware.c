@@ -45,8 +45,8 @@ void gpio_setup(void)
 	gpio_mode_setup(GPIOB, GPIO_MODE_AF,
 			GPIO_PUPD_PULLDOWN, GPIO15 | GPIO13 | GPIO12);
 	/* i2s2ext pin */
-	gpio_set_af(GPIOC, GPIO_AF6, GPIO2);
-	gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_PULLDOWN, GPIO2);
+	gpio_set_af(GPIOB, GPIO_AF6, GPIO14);
+	gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_PULLDOWN, GPIO14);
 }
 
 void pll_setup(void)
