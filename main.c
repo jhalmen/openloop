@@ -46,6 +46,8 @@ int main(void)
 	/* configure codec */
 	uint16_t disable = DAC_C1(0, 0, 0, 0, 0b0000);
 	uint16_t enable = DAC_C1(0, 0, 0, 0, 0b1001);
+	uint16_t vol_full = MASTDA(255, 1);
+	uint16_t vol_low = MASTDA(222,1);
 
 	/* take care of i2s configuration */
 	int div, odd, mckoe;
@@ -139,6 +141,7 @@ int main(void)
 	enable_i2s(I2S2);
 
 	setup_adc();
+	send_codec_cmd(vol_low);
 	while (1) {
 			/* __asm__("wfi"); */
 			/* __asm__("wfe"); */
