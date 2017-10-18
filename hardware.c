@@ -241,7 +241,7 @@ void setup_adc(void)
 	gpio_mode_setup(GPIOA, GPIO_MODE_ANALOG, GPIO_PUPD_NONE, GPIO6);
 	gpio_mode_setup(GPIOA, GPIO_MODE_ANALOG, GPIO_PUPD_NONE, GPIO7);
 
-	adc_set_resolution(ADC1, ADC_CR1_RES_8BIT);
+	adc_set_resolution(ADC1, ADC_CR1_RES_10BIT);
 	adc_set_sample_time_on_all_channels(ADC1, ADC_SMPR_SMP_480CYC);
 	adc_set_right_aligned(ADC1);
 	adc_enable_scan_mode(ADC1);

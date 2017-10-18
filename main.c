@@ -141,8 +141,25 @@ int main(void)
 	enable_i2s(I2S2);
 
 	setup_adc();
-	send_codec_cmd(vol_low);
+
+	uint16_t oldvol[3] = {0,0,0};
 	while (1) {
+		/* input gains and output volume */
+		if ((abs(oldvol[2] - chanvol[2]) > 10) &&
+			((chanvol[2] >> 2) != (oldvol[2] >> 2))) {
+			send_codec_cmd(MASTDA(chanvol[2] >> 2,1));
+			oldvol[2] = chanvol[2];
+		}
+		if ((abs(oldvol[1] - chanvol[1]) > 10) &&
+			((chanvol[1] >> 2) != (oldvol[1] >> 2))) {
+			send_codec_cmd(ADCR(chanvol[1] >> 2,1));
+			oldvol[1] = chanvol[1];
+		}
+		if ((abs(oldvol[0] - chanvol[0]) > 10) &&
+			((chanvol[0] >> 2) != (oldvol[0] >> 2))) {
+			send_codec_cmd(ADCL(chanvol[0] >> 2,1));
+			oldvol[0] = chanvol[0];
+		}
 			/* __asm__("wfi"); */
 			/* __asm__("wfe"); */
 			__asm__("nop");
