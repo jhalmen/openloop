@@ -62,7 +62,7 @@ uint16_t PWR_C(uint8_t PDWN, uint8_t ADCPD, uint8_t DACPD, uint8_t AINPD);
 uint16_t ADCL(uint8_t LAG, uint8_t ZCLA);
 
 /*Attenutaion ADCR*/
-uint16_t ADCR(uint16_t RAG, uint8_t ZCRA);
+uint16_t ADCR(uint8_t RAG, uint8_t ZCRA);
 
 /*ALC Control 1*/
 uint16_t ALC_C1(uint8_t LCT, uint8_t MAXGAIN, uint8_t LCSEL);

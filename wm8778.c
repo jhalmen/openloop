@@ -88,7 +88,7 @@ inline uint16_t ADCL(uint8_t LAG, uint8_t ZCLA){
 }
 
 /*Attenutaion ADCR*/
-inline uint16_t ADCR(uint16_t RAG, uint8_t ZCRA){
+inline uint16_t ADCR(uint8_t RAG, uint8_t ZCRA){
 	return (0x0F << 9) + (ZCRA << 8) + RAG;
 }
 
