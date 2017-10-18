@@ -62,6 +62,14 @@ struct dma_channel {
 	uint16_t numberofdata;
 };
 
+struct i2sfreq {
+	uint16_t plln;
+	uint8_t pllr;
+	uint8_t div;
+	uint8_t odd;
+};
+
+void setup_sound(struct i2sfreq * f);
 void init_dma_channel(struct dma_channel* chan);
 
 /* delete this debug function */

@@ -258,3 +258,18 @@ void setup_adc(void)
 		__asm__("nop");
 	adc_start_conversion_regular(ADC1);
 }
+
+void setup_sound(struct i2sfreq * f)
+{
+	i2s2_pin_setup();
+	/* enable SPI2/I2S2 peripheral clock */
+	rcc_periph_clock_enable(RCC_SPI2);
+	plli2s_setup(f->plln, f->pllr);
+	i2s_init_slave_receive(I2S2ext);
+	i2s_init_master_transmit(I2S2, f->div, f->odd, 1);
+	spi_enable_rx_dma(I2S2ext);
+	spi_enable_tx_dma(I2S2);
+	/* slave has to be enabled before the master! */
+	enable_i2s(I2S2ext);
+	enable_i2s(I2S2);
+}
