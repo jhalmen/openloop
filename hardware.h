@@ -27,6 +27,7 @@
 #include <libopencm3/stm32/dma.h>
 #include <libopencm3/stm32/i2c.h>
 #include <libopencm3/stm32/adc.h>
+#include <libopencm3/stm32/timer.h>
 void pll_setup(void);
 void plli2s_setup(uint16_t n, uint8_t r);
 void i2s2_pin_setup(void);
@@ -39,6 +40,8 @@ uint32_t i2s_read(uint32_t i2s);
 uint8_t chkside(uint32_t i2s);
 void enable_i2s(uint32_t i2s);
 void setup_adc(void);
+void setup_encoder(void);
+uint8_t encpos(void);
 
 void send_codec_cmd(uint16_t cmd);
 void i2c_setup(void);

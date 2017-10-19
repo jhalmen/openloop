@@ -133,8 +133,10 @@ int main(void)
 	setup_sound(&f96k);
 	init_dma_channel(&volumes);
 	setup_adc();
+	setup_encoder();
 
 	uint16_t oldvol[3] = {0,0,0};
+	uint8_t enc_pos = 0;
 	while (1) {
 		/* input gains and output volume */
 		if ((abs(oldvol[2] - chanvol[2]) > 10) &&
@@ -152,6 +154,8 @@ int main(void)
 			send_codec_cmd(ADCL(chanvol[0] >> 2,1));
 			oldvol[0] = chanvol[0];
 		}
+		/* get encoder position */
+		enc_pos = encpos();
 			/* __asm__("wfi"); */
 			/* __asm__("wfe"); */
 			__asm__("nop");

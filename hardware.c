@@ -273,3 +273,26 @@ void setup_sound(struct i2sfreq * f)
 	enable_i2s(I2S2ext);
 	enable_i2s(I2S2);
 }
+
+void setup_encoder(void)
+{
+	/* take care of pins */
+	rcc_periph_clock_enable(RCC_GPIOA);
+	gpio_set_af(GPIOA, GPIO_AF1, GPIO0 | GPIO1);
+	gpio_mode_setup(GPIOA, GPIO_MODE_AF,
+			GPIO_PUPD_PULLUP, GPIO0 | GPIO1);
+	/* configure timer in encoder mode */
+	rcc_periph_clock_enable(RCC_TIM2);
+	timer_set_period(TIM2, 1023);
+	timer_slave_set_mode(TIM2, 0x3); // encoder
+	timer_ic_set_input(TIM2, TIM_IC1, TIM_IC_IN_TI1);
+	timer_ic_set_input(TIM2, TIM_IC2, TIM_IC_IN_TI2);
+	/* timer_ic_enable(TIM2, TIM_IC1); */
+	/* timer_ic_enable(TIM2, TIM_IC2); */
+	timer_enable_counter(TIM2);
+}
+
+uint8_t encpos(void)
+{
+	return timer_get_counter(TIM2) >> 2;
+}
