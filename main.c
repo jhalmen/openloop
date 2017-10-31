@@ -23,7 +23,8 @@
 #include "swo.h"
 #include <stdio.h>
 
-#define OUTBUFFERSIZE (64)
+
+#define OUTBUFFERSIZE (512)
 #define INBUFFERSIZE (32)
 
 uint32_t tick = 0;
@@ -44,15 +45,13 @@ struct dma_channel audioout = {
 	.psize = DMA_SxCR_PSIZE_16BIT,
 	.paddress = (uint32_t) &SPI_DR(I2S2),
 	.msize = DMA_SxCR_MSIZE_16BIT,
-	/* .maddress = (uint32_t) outstream, */
-	.maddress = (uint32_t) instream,
+	.maddress = (uint32_t) outstream,
 	.doublebuf = 0,
 	.minc = 1,
 	.circ = 1,
 	.pinc = 0,
 	.prio = DMA_SxCR_PL_HIGH,
-	/* .numberofdata = OUTBUFFERSIZE */
-	.numberofdata = INBUFFERSIZE
+	.numberofdata = OUTBUFFERSIZE
 };
 
 struct dma_channel audioin = {
@@ -105,6 +104,11 @@ struct i2sfreq f16k = {
 	.odd = 1
 };
 
+uint16_t disable;
+uint16_t enable;
+uint16_t vol_full;
+uint16_t vol_low;
+
 int main(void)
 {
 	/* void initialise_monitor_handles(void); */
@@ -113,11 +117,11 @@ int main(void)
 	systick_setup(10);
 
 	//play ( buffer of single audio, number of points)
-	uint16_t *address = sine_32;
+	uint16_t *address = sine_256;
 	uint16_t n = OUTBUFFERSIZE/2;
 	for (int i = 0; i < n; ++i){
 		outstream[2*i] = address[i] - 0x8000;
-		outstream[2*i+1] = address[(i+n/2)%n] - 0x8000;
+		outstream[2*i+1] = address[i] - 0x8000;
 	}
 
 	i2c_setup();
@@ -125,10 +129,10 @@ int main(void)
 	get_i2c_stat2();
 
 	/* configure codec */
-	uint16_t disable = DAC_C1(0, 0, 0, 0, 0b0000);
-	uint16_t enable = DAC_C1(0, 0, 0, 0, 0b1001);
-	uint16_t vol_full = MASTDA(255, 1);
-	uint16_t vol_low = MASTDA(222,1);
+	disable = DAC_C1(0, 0, 0, 0, 0b0000);
+	enable = DAC_C1(0, 0, 0, 0, 0b1001);
+	vol_full = MASTDA(255, 1);
+	vol_low = MASTDA(222,1);
 
 	init_dma_channel(&audioin);
 	init_dma_channel(&audioout);
