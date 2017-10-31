@@ -62,16 +62,17 @@ void pll_setup(void)
 	rcc_set_hpre(RCC_CFGR_HPRE_DIV_NONE);
 	rcc_set_ppre1(RCC_CFGR_PPRE_DIV_2);
 	rcc_set_ppre2(RCC_CFGR_PPRE_DIV_NONE);
-	/* in case this is needed by the library: */
-	rcc_ahb_frequency  = 84000000;
-	rcc_apb1_frequency = 42000000;
-	rcc_apb2_frequency = 84000000;
 	/* finally enable pll */
 	rcc_osc_on(RCC_PLL);
 	rcc_wait_for_osc_ready(RCC_PLL);
 	/* use pll as system clock */
 	rcc_set_sysclk_source(RCC_CFGR_SW_PLL);
 	rcc_wait_for_sysclk_status(RCC_PLL);
+	/* in case this is needed by the library: */
+	rcc_ahb_frequency  = 84000000;
+	rcc_apb1_frequency = 42000000;
+	rcc_apb2_frequency = 84000000;
+	rcc_osc_off(RCC_HSI);
 }
 
 void systick_setup(uint32_t tick_frequency)
@@ -175,6 +176,7 @@ uint8_t chkside(uint32_t i2s)
 
 void i2c_setup(void)
 {
+	i2c_reset(I2C1);
 	/* i2c pins */
 	/* pb6 & pb7 */
 	rcc_periph_clock_enable(RCC_GPIOB);
@@ -182,7 +184,7 @@ void i2c_setup(void)
 	gpio_set_output_options(GPIOB, GPIO_OTYPE_OD,
 			GPIO_OSPEED_50MHZ, GPIO6 | GPIO7);
 	gpio_mode_setup(GPIOB, GPIO_MODE_AF,
-			GPIO_PUPD_NONE, GPIO6 | GPIO7);
+			GPIO_PUPD_PULLUP, GPIO6 | GPIO7);
 	/* i2c periph*/
 	rcc_periph_clock_enable(RCC_I2C1);
 	i2c_set_clock_frequency(I2C1, I2C_CR2_FREQ_42MHZ);
@@ -261,6 +263,8 @@ void setup_adc(void)
 
 void setup_sound(struct i2sfreq * f)
 {
+	spi_reset(I2S2ext);
+	spi_reset(I2S2);
 	i2s2_pin_setup();
 	/* enable SPI2/I2S2 peripheral clock */
 	rcc_periph_clock_enable(RCC_SPI2);
