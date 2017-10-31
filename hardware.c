@@ -314,3 +314,102 @@ void setup_buttons(void)
 	exti_enable_request(EXTI2 | EXTI11 | EXTI12);
 }
 
+void setup_sddetect(void)
+{
+	/* sdcard detect pin */
+	rcc_periph_clock_enable(RCC_GPIOA);
+	gpio_mode_setup(GPIOA, GPIO_MODE_INPUT, GPIO_PUPD_PULLUP, GPIO15);
+}
+
+uint8_t sddetect(void)
+{
+	return !(gpio_get(GPIOA, GPIO15));
+}
+
+void sd_identify(uint16_t *rca)
+{
+	//activate bus
+	sdio_send_cmd_blocking(0, 0);
+	/* already active */
+	//send SD_APP_OP_COND (ACMD41)
+	/* cards respond with operating condition registers,
+	 * incompatible cards are placed in inactive state 
+	 */
+	// repeat ACMD41 until no card responds with busy bit set anymore
+//	uint32_t response;
+	do {
+		sdio_send_cmd_blocking(55, 0);
+		sdio_send_cmd_blocking(41, 0);
+		//while (!(SDIO_STA & SDIO_STA_CMDREND));
+	} while (!(SDIO_RESP1 & 1));
+	//clear response received flag
+	SDIO_ICR |= SDIO_ICR_CMDRENDC;
+	
+	//send ALL_SEND_CID (CMD2)
+	//cards send back CIDs and enter identification state
+	sdio_send_cmd_blocking(2,0);
+	
+	//send SET_RELATIVE_ADDR (CMD3) to a specific card
+	/* this card enters standby state */
+	/* after powerup or CMD0 (GO_IDLE_STATE) cards are initialized
+	 * with default RCA = 0x0001, maybe i can just use that 
+	 */
+	sdio_send_cmd_blocking(3, 0);
+	while (!(SDIO_STA & SDIO_STA_CMDREND));
+	*rca = SDIO_RESP1 >> 16; 
+	//clear response received flag
+	SDIO_ICR |= SDIO_ICR_CMDRENDC;
+	 
+	/* after detection is done host can send
+	 * SET_CLR_CARD_DETECT (ACMD42) to disable card internal PullUp
+	 * on DAT3 line
+	 */
+	 sdio_send_cmd_blocking(55, (*rca)  << 16);
+	 sdio_send_cmd_blocking(42, 0);
+}
+
+uint32_t sd_status(void)
+{
+	//send SEND_STATUS (CMD13)
+	sdio_send_cmd_blocking(13, 0);
+	//read response
+	//cm3_assert(SDIO_RESPCMD & SDIO_RESPCMD_MSK == 13);
+	return SDIO_RESP1;
+}
+
+void setup_sdcard(uint16_t *sdcard)
+{
+	/* take care of the pins */
+	//enable PullUps on CMD and DAT lines
+	/* SDIO_CMD */
+	rcc_periph_clock_enable(RCC_GPIOD);
+	gpio_set_af(GPIOD, GPIO_AF12, GPIO2);
+	gpio_set_output_options(GPIOD, GPIO_OTYPE_PP,
+			GPIO_OSPEED_50MHZ, GPIO2);
+	gpio_mode_setup(GPIOD, GPIO_MODE_AF,
+			GPIO_PUPD_NONE, GPIO2);
+	/* SDIO_CLK, DAT*/
+	rcc_periph_clock_enable(RCC_GPIOC);
+	gpio_set_af(GPIOC, GPIO_AF12, GPIO8 | GPIO9 | GPIO10 | GPIO11 | GPIO12);
+	gpio_set_output_options(GPIOC, GPIO_OTYPE_PP,
+			GPIO_OSPEED_50MHZ, GPIO8 | GPIO9 | GPIO10 | GPIO11 | GPIO12);
+	gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO12);
+	/* as the card starts out in 1bit mode, those pins stay floating */
+	gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO8);
+	/* take care of sdio configuration */
+	rcc_periph_reset_pulse(RCC_SDIO);
+	rcc_periph_clock_enable(RCC_SDIO);
+	
+	//sdio_enable_hw_flow_control();
+	sdio_set_clk_div(120);
+	sdio_enable_pwrsave();
+	sdio_enable_clock();
+	sdio_power_on();
+	
+	/* identify card, to be able to use it after */
+	sd_identify(sdcard);
+	
+	/* speed up communication */
+	sdio_set_clk_div(0);
+	
+}

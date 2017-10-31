@@ -141,10 +141,21 @@ int main(void)
 	setup_adc();
 	setup_encoder();
 	setup_buttons();
+	setup_sddetect();
+
+	sdio_get_resp(1);
+	sdio_get_respcmd();
+	sdio_get_status();
+	sdio_clkcr();
+	sdio_pwr();
+	
 	enable_swo();
 	
 	uint16_t oldvol[3] = {0,0,0};
 	uint8_t enc_pos = 0;
+	uint16_t sdcard;
+	if (sddetect())
+		setup_sdcard(&sdcard);
 	while (1) {
 		/* input gains and output volume */
 		if ((abs(oldvol[2] - chanvol[2]) > 10) &&

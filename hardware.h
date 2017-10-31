@@ -29,6 +29,7 @@
 #include <libopencm3/stm32/adc.h>
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/exti.h>
+#include "sdio.h"
 void pll_setup(void);
 void plli2s_setup(uint16_t n, uint8_t r);
 void i2s2_pin_setup(void);
@@ -44,6 +45,11 @@ void setup_adc(void);
 void setup_encoder(void);
 uint8_t encpos(void);
 void setup_buttons(void);
+void setup_sddetect(void);
+uint8_t sddetect(void);
+void setup_sdcard(uint16_t *card);
+uint32_t sd_status(void);
+void sd_identify(uint16_t *rca);
 
 
 void send_codec_cmd(uint16_t cmd);
