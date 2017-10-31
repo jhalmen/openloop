@@ -20,6 +20,8 @@
 #include "wm8778.h"
 #include "hardware.h"
 #include "sine.h"
+#include "swo.h"
+#include <stdio.h>
 
 #define OUTBUFFERSIZE (64)
 #define INBUFFERSIZE (32)
@@ -135,7 +137,8 @@ int main(void)
 	setup_adc();
 	setup_encoder();
 	setup_buttons();
-
+	enable_swo();
+	
 	uint16_t oldvol[3] = {0,0,0};
 	uint8_t enc_pos = 0;
 	while (1) {
@@ -159,6 +162,8 @@ int main(void)
 		/* get encoder position */
 		enc_pos = encpos();
 		enc_pos = enc_pos;
+		uint32_t type = TPIU_TYPE;
+		printf("encoder at position %d\n", enc_pos);
 			/* __asm__("wfi"); */
 			/* __asm__("wfe"); */
 			__asm__("nop");
