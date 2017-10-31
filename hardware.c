@@ -300,3 +300,17 @@ uint8_t encpos(void)
 {
 	return timer_get_counter(TIM2) >> 2;
 }
+
+void setup_buttons(void)
+{
+	rcc_periph_clock_enable(RCC_GPIOA);
+	gpio_mode_setup(GPIOA, GPIO_MODE_INPUT,
+			GPIO_PUPD_PULLUP, GPIO2 | GPIO11 | GPIO12);
+	rcc_periph_clock_enable(RCC_SYSCFG);
+	nvic_enable_irq(NVIC_EXTI15_10_IRQ);
+	nvic_enable_irq(NVIC_EXTI2_IRQ);
+	exti_select_source(EXTI2 | EXTI11 | EXTI12, GPIOA);
+	exti_set_trigger(EXTI2 | EXTI11 | EXTI12, EXTI_TRIGGER_FALLING);
+	exti_enable_request(EXTI2 | EXTI11 | EXTI12);
+}
+

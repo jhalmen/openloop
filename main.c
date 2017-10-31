@@ -134,6 +134,7 @@ int main(void)
 	init_dma_channel(&volumes);
 	setup_adc();
 	setup_encoder();
+	setup_buttons();
 
 	uint16_t oldvol[3] = {0,0,0};
 	uint8_t enc_pos = 0;
@@ -144,18 +145,20 @@ int main(void)
 			send_codec_cmd(MASTDA(chanvol[2] >> 2,1));
 			oldvol[2] = chanvol[2];
 		}
-		if ((abs(oldvol[1] - chanvol[1]) > 10) &&
-			((chanvol[1] >> 2) != (oldvol[1] >> 2))) {
-			send_codec_cmd(ADCR(chanvol[1] >> 2,1));
-			oldvol[1] = chanvol[1];
-		}
-		if ((abs(oldvol[0] - chanvol[0]) > 10) &&
-			((chanvol[0] >> 2) != (oldvol[0] >> 2))) {
-			send_codec_cmd(ADCL(chanvol[0] >> 2,1));
-			oldvol[0] = chanvol[0];
-		}
+		/* uncomment this after soldering potis */
+		/* if ((abs(oldvol[1] - chanvol[1]) > 10) && */
+		/* 	((chanvol[1] >> 2) != (oldvol[1] >> 2))) { */
+		/* 	send_codec_cmd(ADCR(chanvol[1] >> 2,1)); */
+		/* 	oldvol[1] = chanvol[1]; */
+		/* } */
+		/* if ((abs(oldvol[0] - chanvol[0]) > 10) && */
+		/* 	((chanvol[0] >> 2) != (oldvol[0] >> 2))) { */
+		/* 	send_codec_cmd(ADCL(chanvol[0] >> 2,1)); */
+		/* 	oldvol[0] = chanvol[0]; */
+		/* } */
 		/* get encoder position */
 		enc_pos = encpos();
+		enc_pos = enc_pos;
 			/* __asm__("wfi"); */
 			/* __asm__("wfe"); */
 			__asm__("nop");
@@ -166,5 +169,26 @@ int main(void)
 void sys_tick_handler(void)
 {
 	++tick;
+}
+
+void exti15_10_isr(void)
+{
+	if (exti_get_flag_status(EXTI11)){
+		exti_reset_request(EXTI11);
+		/* start stomped! */
+	}
+	if (exti_get_flag_status(EXTI12)){
+		exti_reset_request(EXTI12);
+		/* stop stomped! */
+		send_codec_cmd(disable);
+	}
+}
+
+void exti2_isr(void)
+{
+	exti_reset_request(EXTI2);
+	/* menu button pressed */
+	send_codec_cmd(enable);
+
 }
 
