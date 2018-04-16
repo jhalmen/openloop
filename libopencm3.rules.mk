@@ -173,6 +173,12 @@ endif
 print-%:
 	@echo $*=$($*)
 
+tags:
+	# $(CC) -M -DSTM32F4 -I libopencm3/include main.c | sed -e 's/[\\ ]/\n/g' | \
+	# 	sed -e '/^$$/d' -e '/\.o:[ \t]*$$/d' | \
+	# 	ctags -L - --c-kinds=+p --fields=+liaS --extra=+q --language-force=c
+	ctags -R
+
 %.images: %.bin %.hex %.srec %.list %.map
 	@#printf "*** $* images generated ***\n"
 
