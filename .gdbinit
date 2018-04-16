@@ -4,5 +4,6 @@ set mem inaccessible-by-default off
 #set debug remote 1
 tar ext /dev/ttyACM0
 mon version
+mon traceswo
 mon swdp_scan
 att 1
