@@ -114,7 +114,8 @@ int main(void)
 	/* void initialise_monitor_handles(void); */
 	/* initialise_monitor_handles(); */
 	pll_setup();
-	systick_setup(10);
+	systick_setup(1);
+	enable_swo(115200);
 
 	//play ( buffer of single audio, number of points)
 	uint16_t *address = sine_256;
