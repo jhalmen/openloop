@@ -97,15 +97,12 @@ void plli2s_setup(uint16_t n, uint8_t r)
 	rcc_wait_for_osc_ready(RCC_PLLI2S);
 }
 
-/* TODO: unite these 4 functions into one? */
-/* this might help? */
-/* enum i2smode{ */
-/* 	I2S_SLAVE_TRANSMIT, */
-/* 	I2S_SLAVE_RECEIVE, */
-/* 	I2S_MASTER_TRANSMIT, */
-/* 	I2S_MASTER_RECEIVE */
-/* }; */
-void i2s_init_master_receive(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe)
+void i2s_init_master(uint32_t i2s,
+		uint8_t chlen,
+		uint8_t div,
+		uint8_t odd,
+		uint8_t mckoe,
+		uint8_t i2smode)
 {
 	/* set prescaler register */
 	uint16_t pre = (((mckoe & 0x1) << 9) |
@@ -113,46 +110,76 @@ void i2s_init_master_receive(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mck
 	SPI_I2SPR(i2s) = pre;
 	/* set configuration register */
 	uint32_t cfg = SPI_I2SCFGR_I2SMOD |
-			SPI_I2SCFGR_I2SCFG_MASTER_RECEIVE |
-			SPI_I2SCFGR_I2SSTD_I2S_PHILIPS |
-			SPI_I2SCFGR_DATLEN_16BIT |
-			SPI_I2SCFGR_CHLEN;  /*only if chlen=32bit*/
+		(i2smode << SPI_I2SCFGR_I2SCFG_LSB) |
+		(SPI_I2SCFGR_I2SSTD_I2S_PHILIPS << SPI_I2SCFGR_I2SSTD_LSB) |
+		(SPI_I2SCFGR_DATLEN_16BIT << SPI_I2SCFGR_DATLEN_LSB) |
+		(chlen==32?SPI_I2SCFGR_CHLEN:0);
 	SPI_I2SCFGR(i2s) |= cfg;
+}
+
+void i2s_init_master_receive(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe)
+{
+	i2s_init_master(i2s, 32, div, odd, mckoe,SPI_I2SCFGR_I2SCFG_MASTER_RECEIVE);
+	/* /1* set prescaler register *1/ */
+	/* uint16_t pre = (((mckoe & 0x1) << 9) | */
+	/* 	((odd & 0x1) << 8) | div); */
+	/* SPI_I2SPR(i2s) = pre; */
+	/* /1* set configuration register *1/ */
+	/* uint32_t cfg = SPI_I2SCFGR_I2SMOD | */
+	/* 		SPI_I2SCFGR_I2SCFG_MASTER_RECEIVE | */
+	/* 		SPI_I2SCFGR_I2SSTD_I2S_PHILIPS | */
+	/* 		SPI_I2SCFGR_DATLEN_16BIT | */
+	/* 		SPI_I2SCFGR_CHLEN;  */
+	/* SPI_I2SCFGR(i2s) |= cfg; */
 }
 
 void i2s_init_master_transmit(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe)
 {
-	/* set prescaler register */
-	uint16_t pre = (((mckoe & 0x1) << 9) |
-		((odd & 0x1) << 8) | div);
-	SPI_I2SPR(i2s) = pre;
+	i2s_init_master(i2s, 32, div, odd, mckoe,SPI_I2SCFGR_I2SCFG_MASTER_TRANSMIT);
+	/* /1* set prescaler register *1/ */
+	/* uint16_t pre = (((mckoe & 0x1) << 9) | */
+	/* 	((odd & 0x1) << 8) | div); */
+	/* SPI_I2SPR(i2s) = pre; */
+	/* /1* set configuration register *1/ */
+	/* uint32_t cfg = SPI_I2SCFGR_I2SMOD | */
+	/* 		SPI_I2SCFGR_I2SCFG_MASTER_TRANSMIT | */
+	/* 		SPI_I2SCFGR_I2SSTD_I2S_PHILIPS | */
+	/* 		SPI_I2SCFGR_DATLEN_16BIT | */
+	/* 		SPI_I2SCFGR_CHLEN;  */
+	/* SPI_I2SCFGR(i2s) |= cfg; */
+}
+
+void i2s_init_slave(uint32_t i2s, uint8_t i2smode)
+{
+	uint8_t chlen = 32;
 	/* set configuration register */
-	uint32_t cfg = SPI_I2SCFGR_I2SMOD |
-			SPI_I2SCFGR_I2SCFG_MASTER_TRANSMIT |
-			SPI_I2SCFGR_I2SSTD_I2S_PHILIPS |
-			SPI_I2SCFGR_DATLEN_16BIT |
-			SPI_I2SCFGR_CHLEN;  /*only if chlen=32bit*/
-	SPI_I2SCFGR(i2s) |= cfg;
+	SPI_I2SCFGR(i2s) = SPI_I2SCFGR_I2SMOD |
+		(i2smode << SPI_I2SCFGR_I2SCFG_LSB) |
+		(SPI_I2SCFGR_I2SSTD_I2S_PHILIPS << SPI_I2SCFGR_I2SSTD_LSB) |
+		(SPI_I2SCFGR_DATLEN_16BIT << SPI_I2SCFGR_DATLEN_LSB) |
+		(chlen==32?SPI_I2SCFGR_CHLEN:0);
 }
 
 void i2s_init_slave_transmit(uint32_t i2s)
 {
-	/* set configuration register */
-	SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SMOD |
-			SPI_I2SCFGR_I2SCFG_SLAVE_TRANSMIT |
-			SPI_I2SCFGR_I2SSTD_I2S_PHILIPS |
-			SPI_I2SCFGR_DATLEN_16BIT |
-			SPI_I2SCFGR_CHLEN;  /*only if chlen=32bit*/
+	i2s_init_slave(i2s, SPI_I2SCFGR_I2SCFG_SLAVE_TRANSMIT);
+	/* /1* set configuration register *1/ */
+	/* SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SMOD | */
+	/* 		SPI_I2SCFGR_I2SCFG_SLAVE_TRANSMIT | */
+	/* 		SPI_I2SCFGR_I2SSTD_I2S_PHILIPS | */
+	/* 		SPI_I2SCFGR_DATLEN_16BIT | */
+	/* 		SPI_I2SCFGR_CHLEN;  */
 }
 
 void i2s_init_slave_receive(uint32_t i2s)
 {
-	/* set configuration register */
-	SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SMOD |
-			SPI_I2SCFGR_I2SCFG_SLAVE_RECEIVE |
-			SPI_I2SCFGR_I2SSTD_I2S_PHILIPS |
-			SPI_I2SCFGR_DATLEN_16BIT |
-			SPI_I2SCFGR_CHLEN;  /*only if chlen=32bit*/
+	i2s_init_slave(i2s, SPI_I2SCFGR_I2SCFG_SLAVE_RECEIVE);
+	/* /1* set configuration register *1/ */
+	/* SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SMOD | */
+	/* 		SPI_I2SCFGR_I2SCFG_SLAVE_RECEIVE | */
+	/* 		SPI_I2SCFGR_I2SSTD_I2S_PHILIPS | */
+	/* 		SPI_I2SCFGR_DATLEN_16BIT | */
+	/* 		SPI_I2SCFGR_CHLEN;   */
 }
 
 void enable_i2s(uint32_t i2s)
@@ -210,30 +237,6 @@ uint32_t get_i2c_stat2(void)
 	return I2C_SR2(I2C1);
 }
 
-void init_dma_channel(struct dma_channel *chan)
-{
-	rcc_periph_clock_enable(chan->rcc);
-	dma_set_transfer_mode(chan->dma, chan->stream, chan->direction);
-	dma_set_peripheral_size(chan->dma, chan->stream, chan->psize);
-	dma_set_peripheral_address(chan->dma, chan->stream, chan->paddress);
-	if (chan->pinc)
-		dma_enable_peripheral_increment_mode(chan->dma, chan->stream);
-	dma_channel_select(chan->dma, chan->stream, chan->channel);
-	if(chan->doublebuf) {
-		dma_enable_double_buffer_mode(chan->dma, chan->stream);
-		dma_set_memory_address_1(chan->dma, chan->stream, chan->maddress1);
-	} else if (chan->circ) {
-		dma_enable_circular_mode(chan->dma, chan->stream);
-	}
-	dma_set_memory_size(chan->dma, chan->stream, chan->msize);
-	if (chan->minc)
-		dma_enable_memory_increment_mode(chan->dma, chan->stream);
-	dma_set_memory_address(chan->dma, chan->stream, chan->maddress);
-	dma_set_number_of_data(chan->dma, chan->stream, chan->numberofdata);
-	dma_set_priority(chan->dma, chan->stream, chan->prio);
-	dma_enable_stream(chan->dma, chan->stream);
-}
-
 void setup_adc(void)
 {
 	rcc_periph_clock_enable(RCC_GPIOA);
@@ -276,6 +279,20 @@ void setup_sound(struct i2sfreq * f)
 	/* slave has to be enabled before the master! */
 	enable_i2s(I2S2ext);
 	enable_i2s(I2S2);
+}
+
+void sound_pause(struct dma_channel *chan)
+{
+	dma_disable_stream(chan->dma, chan->stream);
+	/* spi_disable(I2S2ext); */
+	/* spi_disable(I2S2); */
+}
+
+void sound_start(struct dma_channel *chan)
+{
+	dma_enable_stream(chan->dma, chan->stream);
+	/* enable_i2s(I2S2ext); */
+	/* enable_i2s(I2S2); */
 }
 
 void setup_encoder(void)
@@ -326,58 +343,12 @@ uint8_t sddetect(void)
 	return !(gpio_get(GPIOA, GPIO15));
 }
 
-void sd_identify(uint16_t *rca)
+uint32_t get_sd_status(void)
 {
-	//activate bus
-	sdio_send_cmd_blocking(0, 0);
-	/* already active */
-	//send SD_APP_OP_COND (ACMD41)
-	/* cards respond with operating condition registers,
-	 * incompatible cards are placed in inactive state 
-	 */
-	// repeat ACMD41 until no card responds with busy bit set anymore
-//	uint32_t response;
-	do {
-		sdio_send_cmd_blocking(55, 0);
-		sdio_send_cmd_blocking(41, 0);
-		//while (!(SDIO_STA & SDIO_STA_CMDREND));
-	} while (!(SDIO_RESP1 & 1));
-	//clear response received flag
-	SDIO_ICR |= SDIO_ICR_CMDRENDC;
-	
-	//send ALL_SEND_CID (CMD2)
-	//cards send back CIDs and enter identification state
-	sdio_send_cmd_blocking(2,0);
-	
-	//send SET_RELATIVE_ADDR (CMD3) to a specific card
-	/* this card enters standby state */
-	/* after powerup or CMD0 (GO_IDLE_STATE) cards are initialized
-	 * with default RCA = 0x0001, maybe i can just use that 
-	 */
-	sdio_send_cmd_blocking(3, 0);
-	while (!(SDIO_STA & SDIO_STA_CMDREND));
-	*rca = SDIO_RESP1 >> 16; 
-	//clear response received flag
-	SDIO_ICR |= SDIO_ICR_CMDRENDC;
-	 
-	/* after detection is done host can send
-	 * SET_CLR_CARD_DETECT (ACMD42) to disable card internal PullUp
-	 * on DAT3 line
-	 */
-	 sdio_send_cmd_blocking(55, (*rca)  << 16);
-	 sdio_send_cmd_blocking(42, 0);
+	return sdio_get_card_status();
 }
 
-uint32_t sd_status(void)
-{
-	//send SEND_STATUS (CMD13)
-	sdio_send_cmd_blocking(13, 0);
-	//read response
-	//cm3_assert(SDIO_RESPCMD & SDIO_RESPCMD_MSK == 13);
-	return SDIO_RESP1;
-}
-
-void setup_sdcard(uint16_t *sdcard)
+void setup_sdio_periph(void)
 {
 	/* take care of the pins */
 	//enable PullUps on CMD and DAT lines
@@ -399,17 +370,17 @@ void setup_sdcard(uint16_t *sdcard)
 	/* take care of sdio configuration */
 	rcc_periph_reset_pulse(RCC_SDIO);
 	rcc_periph_clock_enable(RCC_SDIO);
-	
-	//sdio_enable_hw_flow_control();
-	sdio_set_clk_div(120);
+
+	//sdio_enable_hw_flow_control(); /* device limitation on stm32f401 do not use */
+	sdio_set_clk_div(118);
 	sdio_enable_pwrsave();
 	sdio_enable_clock();
 	sdio_power_on();
-	
+
 	/* identify card, to be able to use it after */
-	sd_identify(sdcard);
-	
+	sdio_identify();
+
 	/* speed up communication */
-	sdio_set_clk_div(0);
-	
+	/* sdio_set_clk_div(2); //logic analyzer speed */
+	sdio_set_clk_div(0); //max speed
 }

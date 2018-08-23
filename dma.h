@@ -16,3 +16,35 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#ifndef DMA_H
+#define DMA_H
+#include <libopencm3/stm32/dma.h>
+#include <libopencm3/stm32/rcc.h>
+
+struct dma_channel {
+	uint32_t rcc;
+	uint32_t dma;
+	uint32_t stream;
+	uint8_t direction;
+	uint32_t channel;
+	uint32_t paddress;
+	uint32_t psize;
+	uint8_t pinc;
+	uint32_t maddress;
+	uint32_t maddress1;
+	uint32_t msize;
+	uint8_t minc;
+	uint8_t circ;
+	uint32_t doublebuf;
+	uint32_t prio;
+	uint16_t numberofdata;
+	uint8_t periphflwctrl;
+	uint32_t pburst;
+	uint32_t mburst;
+};
+
+void dma_init_channel(struct dma_channel* chan);
+void dma_enable_channel(struct dma_channel *chan);
+void dma_disable_channel(struct dma_channel *chan);
+#endif

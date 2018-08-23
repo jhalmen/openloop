@@ -24,19 +24,24 @@
 #include <libopencm3/cm3/nvic.h>
 #include <libopencm3/cm3/systick.h>
 #include <libopencm3/stm32/spi.h>
-#include <libopencm3/stm32/dma.h>
 #include <libopencm3/stm32/i2c.h>
 #include <libopencm3/stm32/adc.h>
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/exti.h>
+#include <stdio.h>
+#include "dma.h"
 #include "sdio.h"
+
 void pll_setup(void);
 void plli2s_setup(uint16_t n, uint8_t r);
 void i2s2_pin_setup(void);
 void i2s_init_master_receive(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe);
 void i2s_init_master_transmit(uint32_t i2s, uint8_t div, uint8_t odd, uint8_t mckoe);
+void i2s_init_master(uint32_t i2s, uint8_t chlen, uint8_t div, uint8_t odd,
+		uint8_t mckoe, uint8_t i2smode);
 void i2s_init_slave_transmit(uint32_t i2s);
 void i2s_init_slave_receive(uint32_t i2s);
+void i2s_init_slave(uint32_t i2s, uint8_t i2smode);
 void systick_setup(uint32_t tick_frequency);
 uint32_t i2s_read(uint32_t i2s);
 uint8_t chkside(uint32_t i2s);
@@ -47,32 +52,14 @@ uint8_t encpos(void);
 void setup_buttons(void);
 void setup_sddetect(void);
 uint8_t sddetect(void);
-void setup_sdcard(uint16_t *card);
-uint32_t sd_status(void);
-void sd_identify(uint16_t *rca);
+void setup_sdio_periph(void);
+uint32_t get_sd_status(void);
+void sd_identify(void);
 
 
 void send_codec_cmd(uint16_t cmd);
 void i2c_setup(void);
 
-struct dma_channel {
-	uint32_t rcc;
-	uint32_t dma;
-	uint32_t stream;
-	uint8_t direction;
-	uint32_t channel;
-	uint32_t paddress;
-	uint32_t psize;
-	uint8_t pinc;
-	uint32_t maddress;
-	uint32_t maddress1;
-	uint32_t msize;
-	uint8_t minc;
-	uint8_t circ;
-	uint32_t doublebuf;
-	uint32_t prio;
-	uint16_t numberofdata;
-};
 
 struct i2sfreq {
 	uint16_t plln;
@@ -82,7 +69,8 @@ struct i2sfreq {
 };
 
 void setup_sound(struct i2sfreq * f);
-void init_dma_channel(struct dma_channel* chan);
+void sound_pause(struct dma_channel *chan);
+void sound_start(struct dma_channel *chan);
 
 /* delete this debug function */
 uint32_t get_i2c_stat1(void);

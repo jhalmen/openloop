@@ -17,10 +17,9 @@
 ## along with this program. If not, see <http://www.gnu.org/licenses/>.
 ##
 BINARY = loop
-SOURCES = main.c wm8778.c hardware.c sdio.c swo.c
+SOURCES = main.c wm8778.c hardware.c sdio.c swo.c dma.c
 
 OPENCM3_DIR = libopencm3
 DEVICE = stm32f401rct6
-# include ./libopencm3/ld/Makefile.linker
 
 include libopencm3.target.mk

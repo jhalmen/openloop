@@ -16,12 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <math.h>
-#include "wm8778.h"
 #include "hardware.h"
+#include "wm8778.h"
 #include "sine.h"
 #include "swo.h"
-#include <stdio.h>
+#include <stdlib.h>
 
 
 #define OUTBUFFERSIZE (512)
@@ -33,6 +32,8 @@ uint32_t tick = 0;
 int16_t outstream[OUTBUFFERSIZE];
 int16_t instream[INBUFFERSIZE];
 
+uint32_t data[512];
+
 /* dma memory location for volume potentiometers */
 uint16_t chanvol[3] = {0,0,0};
 
@@ -43,14 +44,16 @@ struct dma_channel audioout = {
 	.direction = DMA_SxCR_DIR_MEM_TO_PERIPHERAL,
 	.channel = DMA_SxCR_CHSEL_0,
 	.psize = DMA_SxCR_PSIZE_16BIT,
-	.paddress = (uint32_t) &SPI_DR(I2S2),
+	.paddress = (uint32_t)&SPI_DR(I2S2),
 	.msize = DMA_SxCR_MSIZE_16BIT,
-	.maddress = (uint32_t) outstream,
+	.maddress = (uint32_t)outstream,
 	.doublebuf = 0,
 	.minc = 1,
 	.circ = 1,
 	.pinc = 0,
 	.prio = DMA_SxCR_PL_HIGH,
+	.pburst = DMA_SxCR_PBURST_SINGLE,
+	.periphflwctrl = 0,
 	.numberofdata = OUTBUFFERSIZE
 };
 
@@ -61,14 +64,16 @@ struct dma_channel audioin = {
 	.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM,
 	.channel = DMA_SxCR_CHSEL_3,
 	.psize = DMA_SxCR_PSIZE_16BIT,
-	.paddress = (uint32_t) &SPI_DR(I2S2ext),
+	.paddress = (uint32_t)&SPI_DR(I2S2ext),
 	.msize = DMA_SxCR_MSIZE_16BIT,
-	.maddress = (uint32_t) instream,
+	.maddress = (uint32_t)instream,
 	.doublebuf = 0,
 	.minc = 1,
 	.circ = 1,
 	.pinc = 0,
 	.prio = DMA_SxCR_PL_HIGH,
+	.periphflwctrl = 0,
+	.pburst = DMA_SxCR_PBURST_SINGLE,
 	.numberofdata = INBUFFERSIZE
 };
 
@@ -79,14 +84,16 @@ struct dma_channel volumes = {
 	.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM,
 	.channel = DMA_SxCR_CHSEL_0,
 	.psize = DMA_SxCR_PSIZE_16BIT,
-	.paddress = (uint32_t) &ADC_DR(ADC1),
+	.paddress = (uint32_t)&ADC_DR(ADC1),
 	.msize = DMA_SxCR_MSIZE_16BIT,
-	.maddress = (uint32_t) chanvol,
+	.maddress = (uint32_t)chanvol,
 	.doublebuf = 0,
 	.minc = 1,
 	.circ = 1,
 	.pinc = 0,
 	.prio = DMA_SxCR_PL_LOW,
+	.pburst = DMA_SxCR_PBURST_SINGLE,
+	.periphflwctrl = 0,
 	.numberofdata = 3
 };
 
@@ -108,6 +115,32 @@ uint16_t disable;
 uint16_t enable;
 uint16_t vol_full;
 uint16_t vol_low;
+
+void printfifocnt(void);
+void printfifo(void);
+void printdcount(void);
+void printfifocnt(void)
+{
+	printf("fifocount: %ld\n", SDIO_FIFOCNT);
+}
+void printfifo(void)
+{
+	printf("fifo: ");
+	while (SDIO_STA & SDIO_STA_RXDAVL) {
+		printf("gotit");
+		printf("%08lx ", SDIO_FIFO);
+	}
+	printf("\n");
+}
+void printdcount(void)
+{
+	if ((SDIO_STA & SDIO_STA_RXACT) ||
+	   (SDIO_STA & SDIO_STA_TXACT)) {
+		printf("dcount: n/a\n");
+	} else {
+		printf("dcount: %ld\n", SDIO_DCOUNT);
+	}
+}
 
 int main(void)
 {
@@ -135,10 +168,10 @@ int main(void)
 	vol_full = MASTDA(255, 1);
 	vol_low = MASTDA(222,1);
 
-	init_dma_channel(&audioin);
-	init_dma_channel(&audioout);
-	setup_sound(&f96k);
-	init_dma_channel(&volumes);
+	dma_init_channel(&audioin);
+	dma_init_channel(&audioout);
+
+	dma_init_channel(&volumes);
 	setup_adc();
 	setup_encoder();
 	setup_buttons();
@@ -146,17 +179,52 @@ int main(void)
 
 	sdio_get_resp(1);
 	sdio_get_respcmd();
-	sdio_get_status();
+	sdio_get_card_status();
 	sdio_clkcr();
 	sdio_pwr();
-	
-	enable_swo();
-	
+
+
+
 	uint16_t oldvol[3] = {0,0,0};
-	uint8_t enc_pos = 0;
-	uint16_t sdcard;
-	if (sddetect())
-		setup_sdcard(&sdcard);
+	if (sddetect()) {
+		setup_sdio_periph();
+	}
+
+	setup_sound(&f96k);
+	sound_pause(&audioout);
+	sound_start(&audioout);
+
+	/* char sendthis[] = "babeface"; */
+	/* struct dma_channel sdfrommem = sdtomem; */
+	/* sdfrommem.direction = DMA_SxCR_DIR_MEM_TO_PERIPHERAL; */
+	/* sdfrommem.maddress = (uint32_t *) sendthis; */
+	/* init_dma_channel(&sdfrommem); */
+	/* sdio_send_cmd_blocking(7,card<<16); */
+	/* write_block((uint32_t *) sendthis, 8, 0); */
+	/* printf("sent\n"); */
+	/* sdio_send_cmd_blocking(13,card<<16); */
+	/* __asm__("wfi"); */
+
+	data[0]=0;
+
+	read_status(data);
+	/* read_block(data, 8, 0); */
+	/* for (int i = 0; i < 512; ++i) */
+	/* 	printf("%0x",*(data+i)); */
+	/* printf("\n"); */
+	/* sdio_send_cmd_blocking(13, card << 16); */
+	while (1) {
+		printdcount();
+		printfifocnt();
+		/* printfifo(); */
+	/* for (int i = 0; i < 512; ++i) */
+	/* 	printf("%0x",*(data+i)); */
+	/* printf("\n"); */
+		print_host_stat();
+		__asm__("wfi");
+	}
+
+
 	while (1) {
 		/* input gains and output volume */
 		if ((abs(oldvol[2] - chanvol[2]) > 10) &&
@@ -175,14 +243,12 @@ int main(void)
 		/* 	send_codec_cmd(ADCL(chanvol[0] >> 2,1)); */
 		/* 	oldvol[0] = chanvol[0]; */
 		/* } */
+
 		/* get encoder position */
-		enc_pos = encpos();
-		enc_pos = enc_pos;
-		uint32_t type = TPIU_TYPE;
-		printf("encoder at position %d\n", enc_pos);
-			/* __asm__("wfi"); */
+		printf("encoder at position %d\n", encpos());
+			 __asm__("wfi");
 			/* __asm__("wfe"); */
-			__asm__("nop");
+			/* __asm__("nop"); */
 	}
 	return 0;
 }
