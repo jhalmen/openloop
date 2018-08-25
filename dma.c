@@ -19,7 +19,7 @@
 
 #include "dma.h"
 
-void dma_init_channel(struct dma_channel *chan)
+void dma_channel_init(struct dma_channel *chan)
 {
 	rcc_periph_clock_enable(chan->rcc);
 
@@ -55,12 +55,12 @@ void dma_init_channel(struct dma_channel *chan)
 	dma_enable_stream(chan->dma, chan->stream);
 }
 
-void dma_enable_channel(struct dma_channel *chan)
+void dma_channel_enable(struct dma_channel *chan)
 {
 	dma_enable_stream(chan->dma, chan->stream);
 }
 
-void dma_disable_channel(struct dma_channel *chan)
+void dma_channel_disable(struct dma_channel *chan)
 {
 	dma_disable_stream(chan->dma, chan->stream);
 }

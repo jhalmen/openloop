@@ -122,11 +122,11 @@ struct {
 	{EUNKNOWN,	"UNKNOWN"}
 };
 
-uint32_t sdio_pwr()
+uint32_t sdio_get_host_pwr()
 {
 	return SDIO_POWER;
 }
-uint32_t sdio_clkcr()
+uint32_t sdio_get_host_clkcr()
 {
 	return SDIO_CLKCR;
 }
@@ -366,7 +366,7 @@ void write_block(uint32_t *buffer, uint32_t length, uint32_t sd_address)
 	sd_dma.maddress = (uint32_t)buffer;
 	//TODO init dma dir to card
 	sdio_send_cmd_blocking(24, sd_address);
-	dma_init_channel(&sd_dma);
+	dma_channel_init(&sd_dma);
 	/* timeout : 250ms */
 	SDIO_DTIMER = 6000000;
 	SDIO_DLEN = length;
@@ -380,7 +380,7 @@ void write_block(uint32_t *buffer, uint32_t length, uint32_t sd_address)
 
 void read_status(uint32_t *buffer)
 {
-	dma_disable_channel(&sd_dma);
+	dma_channel_disable(&sd_dma);
 	// select card
 	sdio_send_cmd_blocking(7, sd_rca<<16);
 	// ACMD13
@@ -389,7 +389,7 @@ void read_status(uint32_t *buffer)
 	//TODO init dma dir from card
 	sd_dma.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM;
 	sd_dma.maddress = (uint32_t)buffer;
-	dma_init_channel(&sd_dma);
+	dma_channel_init(&sd_dma);
 	/* timeout : 100ms */
 	SDIO_DTIMER = 2400000;
 	SDIO_DLEN = 64;

@@ -20,9 +20,6 @@
 #include <libopencm3/stm32/sdio.h>
 #include "dma.h"
 
-
-
-
 uint32_t sdio_get_host_status(void);
 uint8_t sdio_get_host_flag(enum sdio_status_flags flag);
 uint32_t sdio_get_resp(int n);
@@ -32,8 +29,8 @@ uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg);
 void sdio_identify(void);
 uint32_t sdio_get_card_status(void);
 
-uint32_t sdio_clkcr(void);
-uint32_t sdio_pwr(void);
+uint32_t sdio_get_host_clkcr(void);
+uint32_t sdio_get_host_pwr(void);
 
 void print_card_stat(void);
 void print_host_stat(void);

@@ -44,7 +44,7 @@ struct dma_channel {
 	uint32_t mburst;
 };
 
-void dma_init_channel(struct dma_channel* chan);
-void dma_enable_channel(struct dma_channel *chan);
-void dma_disable_channel(struct dma_channel *chan);
+void dma_channel_init(struct dma_channel* chan);
+void dma_channel_enable(struct dma_channel *chan);
+void dma_channel_disable(struct dma_channel *chan);
 #endif

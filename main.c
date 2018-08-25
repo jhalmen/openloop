@@ -146,7 +146,7 @@ void printdcount(void)
 int main(void)
 {
 	pll_setup();
-	systick_setup(2);
+	systick_setup(1);
 	/* enable_swo(115200); */
 	enable_swo(230400);
 	/* enable_swo(2250000); */
@@ -160,8 +160,6 @@ int main(void)
 	}
 
 	i2c_setup();
-	get_i2c_stat1();
-	get_i2c_stat2();
 
 	/* configure codec */
 	disable = DAC_C1(0, 0, 0, 0, 0b0000);
@@ -178,49 +176,22 @@ int main(void)
 	buttons_setup();
 	sddetect_setup();
 
-	sdio_get_resp(1);
-	sdio_get_respcmd();
-	sdio_clkcr();
-	sdio_pwr();
-
-
-
 	uint16_t oldvol[3] = {0,0,0};
 	if (sddetect()) {
 		sdio_periph_setup();
 	}
-	sdio_get_card_status();
 
 	sound_setup(&f96k);
 	sound_pause(&audioout);
 	sound_start(&audioout);
 
-	/* char sendthis[] = "babeface"; */
-	/* struct dma_channel sdfrommem = sdtomem; */
-	/* sdfrommem.direction = DMA_SxCR_DIR_MEM_TO_PERIPHERAL; */
-	/* sdfrommem.maddress = (uint32_t *) sendthis; */
-	/* init_dma_channel(&sdfrommem); */
-	/* sdio_send_cmd_blocking(7,card<<16); */
-	/* write_block((uint32_t *) sendthis, 8, 0); */
-	/* printf("sent\n"); */
-	/* sdio_send_cmd_blocking(13,card<<16); */
-	/* __asm__("wfi"); */
 
 	data[0]=0;
 
 	read_status(data);
-	/* read_block(data, 8, 0); */
-	/* for (int i = 0; i < 512; ++i) */
-	/* 	printf("%0x",*(data+i)); */
-	/* printf("\n"); */
-	/* sdio_send_cmd_blocking(13, card << 16); */
 	while (1) {
 		printdcount();
 		printfifocnt();
-		/* printfifo(); */
-	/* for (int i = 0; i < 512; ++i) */
-	/* 	printf("%0x",*(data+i)); */
-	/* printf("\n"); */
 		print_host_stat();
 		__asm__("wfi");
 	}
@@ -264,11 +235,13 @@ void exti15_10_isr(void)
 	if (exti_get_flag_status(EXTI11)){
 		exti_reset_request(EXTI11);
 		/* start stomped! */
+		dprintf(0, "start stomped!\n");
 	}
 	if (exti_get_flag_status(EXTI12)){
 		exti_reset_request(EXTI12);
 		/* stop stomped! */
 		send_codec_cmd(disable);
+		dprintf(0, "stop stomped!\n");
 	}
 }
 
@@ -277,6 +250,7 @@ void exti2_isr(void)
 	exti_reset_request(EXTI2);
 	/* menu button pressed */
 	send_codec_cmd(enable);
+	dprintf(0, "menu pressed!\n");
 
 }
 
