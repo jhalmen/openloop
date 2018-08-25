@@ -182,7 +182,7 @@ void i2s_init_slave_receive(uint32_t i2s)
 	/* 		SPI_I2SCFGR_CHLEN;   */
 }
 
-void enable_i2s(uint32_t i2s)
+void i2s_enable(uint32_t i2s)
 {
 	SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SE;
 }
@@ -237,7 +237,7 @@ uint32_t get_i2c_stat2(void)
 	return I2C_SR2(I2C1);
 }
 
-void setup_adc(void)
+void adc_setup(void)
 {
 	rcc_periph_clock_enable(RCC_GPIOA);
 	rcc_periph_clock_enable(RCC_ADC1);
@@ -264,7 +264,7 @@ void setup_adc(void)
 	adc_start_conversion_regular(ADC1);
 }
 
-void setup_sound(struct i2sfreq * f)
+void sound_setup(struct i2sfreq * f)
 {
 	spi_reset(I2S2ext);
 	spi_reset(I2S2);
@@ -277,8 +277,8 @@ void setup_sound(struct i2sfreq * f)
 	spi_enable_rx_dma(I2S2ext);
 	spi_enable_tx_dma(I2S2);
 	/* slave has to be enabled before the master! */
-	enable_i2s(I2S2ext);
-	enable_i2s(I2S2);
+	i2s_enable(I2S2ext);
+	i2s_enable(I2S2);
 }
 
 void sound_pause(struct dma_channel *chan)
@@ -295,7 +295,7 @@ void sound_start(struct dma_channel *chan)
 	/* enable_i2s(I2S2); */
 }
 
-void setup_encoder(void)
+void encoder_setup(void)
 {
 	/* take care of pins */
 	rcc_periph_clock_enable(RCC_GPIOA);
@@ -318,7 +318,7 @@ uint8_t encpos(void)
 	return timer_get_counter(TIM2) >> 2;
 }
 
-void setup_buttons(void)
+void buttons_setup(void)
 {
 	rcc_periph_clock_enable(RCC_GPIOA);
 	gpio_mode_setup(GPIOA, GPIO_MODE_INPUT,
@@ -331,7 +331,7 @@ void setup_buttons(void)
 	exti_enable_request(EXTI2 | EXTI11 | EXTI12);
 }
 
-void setup_sddetect(void)
+void sddetect_setup(void)
 {
 	/* sdcard detect pin */
 	rcc_periph_clock_enable(RCC_GPIOA);
@@ -348,7 +348,7 @@ uint32_t get_sd_status(void)
 	return sdio_get_card_status();
 }
 
-void setup_sdio_periph(void)
+void sdio_periph_setup(void)
 {
 	/* take care of the pins */
 	//enable PullUps on CMD and DAT lines

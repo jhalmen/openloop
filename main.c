@@ -22,6 +22,7 @@
 #include "swo.h"
 #include <stdlib.h>
 
+uint8_t printall = 1;
 
 #define OUTBUFFERSIZE (512)
 #define INBUFFERSIZE (32)
@@ -144,11 +145,11 @@ void printdcount(void)
 
 int main(void)
 {
-	/* void initialise_monitor_handles(void); */
-	/* initialise_monitor_handles(); */
 	pll_setup();
-	systick_setup(1);
-	enable_swo(115200);
+	systick_setup(2);
+	/* enable_swo(115200); */
+	enable_swo(230400);
+	/* enable_swo(2250000); */
 
 	//play ( buffer of single audio, number of points)
 	uint16_t *address = sine_256;
@@ -168,18 +169,17 @@ int main(void)
 	vol_full = MASTDA(255, 1);
 	vol_low = MASTDA(222,1);
 
-	dma_init_channel(&audioin);
-	dma_init_channel(&audioout);
+	dma_channel_init(&audioin);
+	dma_channel_init(&audioout);
 
-	dma_init_channel(&volumes);
-	setup_adc();
-	setup_encoder();
-	setup_buttons();
-	setup_sddetect();
+	dma_channel_init(&volumes);
+	adc_setup();
+	encoder_setup();
+	buttons_setup();
+	sddetect_setup();
 
 	sdio_get_resp(1);
 	sdio_get_respcmd();
-	sdio_get_card_status();
 	sdio_clkcr();
 	sdio_pwr();
 
@@ -187,10 +187,11 @@ int main(void)
 
 	uint16_t oldvol[3] = {0,0,0};
 	if (sddetect()) {
-		setup_sdio_periph();
+		sdio_periph_setup();
 	}
+	sdio_get_card_status();
 
-	setup_sound(&f96k);
+	sound_setup(&f96k);
 	sound_pause(&audioout);
 	sound_start(&audioout);
 

@@ -125,7 +125,7 @@ TGT_LDFLAGS		+= --static -nostartfiles
 TGT_LDFLAGS		+= -T$(LDSCRIPT)
 TGT_LDFLAGS		+= $(ARCH_FLAGS)
 TGT_LDFLAGS		+= -Wl,-Map=$(*).map
-TGT_LDFLAGS		+= -Wl,--gc-sections
+# TGT_LDFLAGS		+= -Wl,--gc-sections
 ifeq ($(V),99)
 TGT_LDFLAGS		+= -Wl,--print-gc-sections
 endif
@@ -173,7 +173,7 @@ endif
 print-%:
 	@echo $*=$($*)
 
-tags:
+tags: $(SOURCES)
 	# $(CC) -M -DSTM32F4 -I libopencm3/include main.c | sed -e 's/[\\ ]/\n/g' | \
 	# 	sed -e '/^$$/d' -e '/\.o:[ \t]*$$/d' | \
 	# 	ctags -L - --c-kinds=+p --fields=+liaS --extra=+q --language-force=c

@@ -45,14 +45,14 @@ void i2s_init_slave(uint32_t i2s, uint8_t i2smode);
 void systick_setup(uint32_t tick_frequency);
 uint32_t i2s_read(uint32_t i2s);
 uint8_t chkside(uint32_t i2s);
-void enable_i2s(uint32_t i2s);
-void setup_adc(void);
-void setup_encoder(void);
+void i2s_enable(uint32_t i2s);
+void adc_setup(void);
+void encoder_setup(void);
 uint8_t encpos(void);
-void setup_buttons(void);
-void setup_sddetect(void);
+void buttons_setup(void);
+void sddetect_setup(void);
 uint8_t sddetect(void);
-void setup_sdio_periph(void);
+void sdio_periph_setup(void);
 uint32_t get_sd_status(void);
 void sd_identify(void);
 
@@ -68,7 +68,7 @@ struct i2sfreq {
 	uint8_t odd;
 };
 
-void setup_sound(struct i2sfreq * f);
+void sound_setup(struct i2sfreq * f);
 void sound_pause(struct dma_channel *chan);
 void sound_start(struct dma_channel *chan);
 
