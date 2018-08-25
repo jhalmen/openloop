@@ -18,8 +18,10 @@
  */
 #include "sdio.h"
 #include <stdio.h>
+#include <libopencm3/cm3/nvic.h>
 
-char *sdiohoststat[] = {
+
+const char *sdiohoststat[] = {
 	"CCRCFAIL",
 	"DCRCFAIL",
 	"CTIMEOUT",
@@ -46,14 +48,14 @@ char *sdiohoststat[] = {
 	"CEATAEND"
 };
 
-char *cardstat[] = {
+const char *cardstat[] = {
 	"", "", "",
 	"AKE_SEQ_ERROR",
 	"",
 	"APP_CMD",
 	"", "",
 	"READY_FOR_DATA",
-	"", "", "", "",
+	"", "", "", "", // curr_state[]
 	"ERASE_RESET",
 	"CARD_ECC_DISABLED",
 	"WP_ERASE_SKIP",
@@ -74,7 +76,7 @@ char *cardstat[] = {
 	"OUT_OF_RANGE"
 };
 
-char *curr_state[] = {
+const char *curr_state[] = {
 	"idle",
 	"ready",
 	"ident",
@@ -84,13 +86,8 @@ char *curr_state[] = {
 	"rcv",
 	"prg",
 	"dis",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved",
-	"reserved for I/O"
+	"reserved", "reserved", "reserved", "reserved", "reserved",
+	"reserved", "reserved for I/O"
 };
 
 static uint16_t sd_rca;
@@ -113,6 +110,16 @@ static struct dma_channel sd_dma = {
 	.pburst = DMA_SxCR_PBURST_INCR4,
 	.mburst = DMA_SxCR_MBURST_INCR4,
 	.numberofdata = 0
+};
+
+struct {
+	uint8_t err;
+	const char* msg;
+} sdio_error[] = {
+	{0, ""},
+	{ECTIMEOUT,	"CTIMEOUT"},
+	{ECCRCFAIL,	"CCRCFAIL"},
+	{EUNKNOWN,	"UNKNOWN"}
 };
 
 uint32_t sdio_pwr()
@@ -161,74 +168,60 @@ void sdio_clear_host_flag(enum sdio_status_flags flag)
 
 uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 {
-	fprintf(stderr,"sending command %d with arg %08lx", cmd, arg);
+	dprintf(2,"sending cmd %d with arg %08lx", cmd, arg);
 	/* clear flags */
 	SDIO_ICR = (3 << 22) | (2047);
 	uint8_t acmd = (SDIO_RESPCMD & SDIO_RESPCMD_MASK) == 55;
 	/* check response type */
+	/* according to SD Spec */
 	uint8_t resp;
+	uint8_t waitresp;
 	switch(cmd){
 	case 3:
 		resp = 6;
+		waitresp = 1;
 		break;
 	case 2:
 	case 9:
 	case 10:
 		resp = 2;
+		waitresp = 3;
 		break;
 	case 8:
 		resp = 7;
+		waitresp = 1;
 		break;
 	case 0:
 	case 4:
 	case 15:
-		resp = 0;
+		waitresp = resp = 0;
 		break;
-	/* according to
-	 * http://users.ece.utexas.edu/~valvano/EE345M/SD_Physical_Layer_Spec.pdf
-	 * acmd13 has a response R1, not as thought R3 */
-	/* case 13: */
-	/* 	if (acmd){ */
-	/* 		resp = 3; */
-	/* 		break; */
-	/* 	} */
 	case 41:
 		if (acmd) {
 			resp = 3;
+			waitresp = 1;
+			break;
 		}
-		break;
+		/* fallthrough */
+	/* according to
+	 * http://users.ece.utexas.edu/~valvano/EE345M/SD_Physical_Layer_Spec.pdf
+	 * acmd13 has a response R1, not as thought R3 */
 	default:
-		resp = 1;
+		waitresp = resp = 1;
 	}
 
 	/* set arg and send cmd */
 	SDIO_ARG = arg;
-	uint8_t waitresp;
-	switch (resp) {
-	case 0:
-		waitresp = 0;
-		break;
-	case 1:
-	case 3:
-	case 6:
-	case 7:
-		waitresp = 1;
-		break;
-	case 2:
-		waitresp = 3;
-		break;
-	};
-
 	uint32_t tmp;
 	tmp = (SDIO_CMD_CMDINDEX_MASK & (cmd << SDIO_CMD_CMDINDEX_SHIFT))
 				| (waitresp << SDIO_CMD_WAITRESP_SHIFT)
 				| SDIO_CMD_CPSMEN;
 	SDIO_CMD = tmp;
-	/* wait till finished */
+	/* wait till sent */
 	while (SDIO_STA & SDIO_STA_CMDACT) {
-		fprintf(stderr,".");
+		dprintf(2,".");
 	}
-	fprintf(stderr," ");
+	dprintf(2,"\nsent\n");
 	int ret;
 	if (!resp && SDIO_STA & SDIO_STA_CMDSENT) {
 		ret = 0;
@@ -251,16 +244,23 @@ uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 		/* shouldn't happen */
 		ret = EUNKNOWN;
 	}
-	fprintf(stderr,"sent\n");
-	printf("RESPONSE: %08lx %08lx %08lx %08lx\n", SDIO_RESP1, SDIO_RESP2, SDIO_RESP3, SDIO_RESP4);
-	uint8_t *response =(uint8_t *) &SDIO_RESP1;
-	for (int i = 0; i < 16; ++i)
-		printf("%02x", *response++);
-	printf("\n");
+	print_response_raw();
 	if (resp == 1) {
 		print_card_stat();
 	}
 	print_host_stat();
+	dprintf(0,"sending command %d returned %s\n", cmd, sdio_error[ret].msg);
+	if (ret)
+	{
+		if (resp == 3)	// ignore CCRCFAIL for response type R3
+			return 0;
+		if (cmd == 7 && arg == 0)	// CTIMEOUT is a successful deselect of card
+			return 0;
+		/* TODO: something's happened. probably want to let the program */
+		/* know instead of blocking it. */
+		dprintf(0, "stopping\n");
+		while(1);
+	}
 	return ret;
 }
 
@@ -268,9 +268,12 @@ void print_card_stat(void)
 {
 	uint32_t resp = sdio_get_resp(1);
 	printf("CARD STATUS: #################\n");
+	/* print out what every bit means */
 	for (int i = 0; i < 32; ++i) {
-		if (i >= 9 && i <= 12) {
-			printf("##[%2ld] state: %s\n", (resp >> 9) & 0xf,curr_state[(resp >> 9) & 0xf]);
+		if (i >= 9 && i <= 12) {  // 4bit field
+			printf("##[%2ld] state: %s\n",
+					(resp >> 9) & 0xf,
+					curr_state[(resp >> 9) & 0xf]);
 			i = 12;
 		}
 		else if (resp & (1 << i)) {
@@ -287,6 +290,13 @@ void print_host_stat(void)
 			printf("[%2d]%s ", i, sdiohoststat[i]);
 	printf("\n");
 }
+
+void print_response_raw(void)
+{
+	printf("RESPONSE: %08lx %08lx %08lx %08lx\n",
+			SDIO_RESP1, SDIO_RESP2, SDIO_RESP3, SDIO_RESP4);
+}
+
 
 uint32_t sdio_get_card_status(void)
 {
