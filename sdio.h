@@ -36,6 +36,7 @@ void print_card_stat(void);
 void print_host_stat(void);
 void print_response_raw(void);
 void read_status(uint32_t *data);
+void read_scr(uint32_t *data);
 void read_block(uint32_t length, uint32_t address);
 void write_block(uint32_t *data, uint32_t length, uint32_t sd_address);
 void erase(uint32_t start, uint32_t nblocks);

@@ -20,6 +20,8 @@
 #include <stdio.h>
 #include <libopencm3/cm3/nvic.h>
 
+#define byte_swap(word) \
+	__asm__("rev %[swap], %[swap]" : [swap] "=r" (word) : "0" (word));
 
 const char *sdiohoststat[] = {
 	"CCRCFAIL",
@@ -90,7 +92,11 @@ const char *curr_state[] = {
 	"reserved", "reserved for I/O"
 };
 
-static uint16_t sd_rca;
+struct {
+	uint16_t rca;
+	uint32_t last_status;
+} sdcard;
+
 static struct dma_channel sd_dma = {
 	.rcc = RCC_DMA2,
 	.dma = DMA2,
@@ -107,8 +113,10 @@ static struct dma_channel sd_dma = {
 	.pinc = 0,
 	.prio = DMA_SxCR_PL_HIGH,
 	.periphflwctrl = 1,
-	.pburst = DMA_SxCR_PBURST_INCR4,
-	.mburst = DMA_SxCR_MBURST_INCR4,
+	/* .pburst = DMA_SxCR_PBURST_INCR4, */
+	.pburst = DMA_SxCR_MBURST_SINGLE,
+	.mburst = DMA_SxCR_MBURST_SINGLE,
+	/* .mburst = DMA_SxCR_MBURST_INCR4, */
 	.numberofdata = 0
 };
 
@@ -121,6 +129,7 @@ struct {
 	{ECCRCFAIL,	"CCRCFAIL"},
 	{EUNKNOWN,	"UNKNOWN"}
 };
+
 
 uint32_t sdio_get_host_pwr()
 {
@@ -246,6 +255,7 @@ uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 	}
 	print_response_raw();
 	if (resp == 1) {
+		sdcard.last_status = SDIO_RESP1;
 		print_card_stat();
 	}
 	print_host_stat();
@@ -254,8 +264,10 @@ uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 	{
 		if (resp == 3)	// ignore CCRCFAIL for response type R3
 			return 0;
-		if (cmd == 7 && arg == 0)	// CTIMEOUT is a successful deselect of card
+		if (cmd == 7 && arg == 0) {	// CTIMEOUT is a successful deselect of card
+			sdcard.last_status = 0;
 			return 0;
+		}
 		/* TODO: something's happened. probably want to let the program */
 		/* know instead of blocking it. */
 		dprintf(0, "stopping\n");
@@ -301,13 +313,16 @@ void print_response_raw(void)
 uint32_t sdio_get_card_status(void)
 {
 	// SEND_STATUS (CMD13)
-	sdio_send_cmd_blocking(13, sd_rca << 16);
+	sdio_send_cmd_blocking(13, sdcard.rca << 16);
 	// read response
 	return SDIO_RESP1;
 }
 
 void sdio_identify(void)
 {
+	// according to family reference manual,
+	// set data timer register at this point (rm0368 p.622 -> 5.a)
+	// TODO: -^ or don't if it works
 	//activate bus
 	sdio_send_cmd_blocking(0, 0);
 	/* already active */
@@ -346,7 +361,7 @@ void sdio_identify(void)
 	 */
 	sdio_send_cmd_blocking(3, 0);
 	/* while (!(SDIO_STA & SDIO_STA_CMDREND)); */
-	sd_rca = SDIO_RESP1 >> 16;
+	sdcard.rca = SDIO_RESP1 >> 16;
 	//clear response received flag
 	/* SDIO_ICR |= SDIO_ICR_CMDRENDC; */
 
@@ -354,11 +369,46 @@ void sdio_identify(void)
 	 * SET_CLR_CARD_DETECT (ACMD42) to disable card internal PullUp
 	 * on DAT3 line
 	 */
-	sdio_send_cmd_blocking(7, (sd_rca) << 16);
-	sdio_send_cmd_blocking(55, (sd_rca)  << 16);
-	sdio_send_cmd_blocking(42, (sd_rca)  << 16);
+	sdio_send_cmd_blocking(7, (sdcard.rca) << 16);
+	sdio_send_cmd_blocking(55, (sdcard.rca)  << 16);
+	sdio_send_cmd_blocking(42, (sdcard.rca)  << 16);
 	sdio_send_cmd_blocking(7, 0);
 }
+/*
+ * Memory access commands include block read commands (CMD17, CMD18), block write commands
+ * (CMD24, CMD25), and block erase commands (CMD32, CMD33).
+ * Following are the functional differences of memory access commands between Standard Capacity and
+ * High Capacity SD Memory Cards:
+ *
+ *  • Command Argument
+ *  In High Capacity Cards, the 32-bit argument of memory access commands uses the memory
+ *  address in block address format. Block length is fixed to 512 bytes,
+ *  In Standard Capacity Cards, the 32-bit argument of memory access commands uses the
+ *  memory address in byte address format. Block length is determined by CMD16,
+ *  i.e.:
+ *  (a) Argument 0001h is byte address 0001h in the Standard Capacity Card and 0001h block in
+ *  High Capacity Card
+ *  (b) Argument 0200h is byte address 0200h in the Standard Capacity Card and 0200h block in
+ *  High Capacity Card
+ *
+ *  • Partial Access and Misalign Access
+ *  Partial access and Misalign access (crossing physical block boundary) are disabled in High
+ *  Capacity Card as the block address is used. Access is only granted based on block
+ *  addressing.
+ *
+ *  • Set Block Length
+ *  When memory read and write commands are used in block address mode, 512-byte fixed
+ *  block length is used regardless of the block length set by CMD16. The setting of the block
+ *  length does not affect the memory access commands.  CMD42 is not classified as a memory
+ *  access command. The data block size shall be specified by CMD16 and the block length can
+ *  be set up to 512 bytes. Setting block length larger than 512 bytes sets the
+ *  BLOCK_LEN_ERROR error bit regardless of the card capacity.
+ *
+ *  • Write Protected Group
+ *  High Capacity SD Memory Card does not support write-protected groups. Issuing CMD28,
+ *  CMD29 and CMD30 generates the ILLEGAL_COMMAND error.
+ * */
+
 
 void write_block(uint32_t *buffer, uint32_t length, uint32_t sd_address)
 {
@@ -370,7 +420,7 @@ void write_block(uint32_t *buffer, uint32_t length, uint32_t sd_address)
 	/* timeout : 250ms */
 	SDIO_DTIMER = 6000000;
 	SDIO_DLEN = length;
-	SDIO_DCTRL = 	(9 << 4)| /* DATA BLOCKSIZE 2^x bits */
+	SDIO_DCTRL = 	(9 << 4)| /* DATA BLOCKSIZE 2^x bytes */
 			(1 << 3)| /* DMA Enable */
 			(0 << 2)| /* DTMODE: Block (0) or Stream (1) */
 			(0 << 1)| /* DTDIR: from controller */
@@ -382,22 +432,60 @@ void read_status(uint32_t *buffer)
 {
 	dma_channel_disable(&sd_dma);
 	// select card
-	sdio_send_cmd_blocking(7, sd_rca<<16);
-	// ACMD13
-	sdio_send_cmd_blocking(55, sd_rca<<16);
-	sdio_send_cmd_blocking(13, sd_rca<<16);
-	//TODO init dma dir from card
+	if ((sdcard.last_status & (4 << 9)) == 0) {
+		sdio_send_cmd_blocking(7, sdcard.rca<<16);
+	}
+	// take care of dma
 	sd_dma.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM;
 	sd_dma.maddress = (uint32_t)buffer;
 	dma_channel_init(&sd_dma);
+	dprintf(0, "dma enabled: %d\n", DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
+	// ACMD13
+	sdio_send_cmd_blocking(55, sdcard.rca<<16);
+	sdio_send_cmd_blocking(13, sdcard.rca<<16);
 	/* timeout : 100ms */
 	SDIO_DTIMER = 2400000;
+	/* SDIO_DTIMER = 24000000; */
 	SDIO_DLEN = 64;
-	SDIO_DCTRL = 	(9 << 4)| /* DATA BLOCKSIZE 2^x bits */
+	SDIO_DCTRL = 	(6 << 4)| /* DATA BLOCKSIZE 2^x bytes */
 			(1 << 3)| /* DMA Enable */
 			(0 << 2)| /* DTMODE: Block (0) or Stream (1) */
 			(1 << 1)| /* DTDIR: to controller */
 			(1 << 0); /* DTEN: enable data state machine */
+	dprintf(0, "dma enabled: %d\n", DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
+	/* sdio_send_cmd_blocking(7, 0); */
+}
+
+void read_scr(uint32_t *buffer)
+{
+	dma_channel_disable(&sd_dma);
+	// select card
+	if ((sdcard.last_status & (4 << 9)) == 0) {
+		sdio_send_cmd_blocking(7, sdcard.rca<<16);
+	}
+	// take care of dma
+	sd_dma.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM;
+	sd_dma.maddress = (uint32_t)buffer;
+	dma_channel_init(&sd_dma);
+	// ACMD51
+	sdio_send_cmd_blocking(55, sdcard.rca<<16);
+	sdio_send_cmd_blocking(51, sdcard.rca<<16);
+	/* timeout : 100ms */
+	SDIO_DTIMER = 2400000;
+	/* SDIO_DTIMER = 0xffffffff; */
+	SDIO_DLEN = 8;
+	SDIO_DCTRL = 	(3 << 4)| /* DATA BLOCKSIZE 2^x bytes */
+			(1 << 3)| /* DMA Enable */
+			(0 << 2)| /* DTMODE: Block (0) or Stream (1) */
+			(1 << 1)| /* DTDIR: to controller */
+			(1 << 0); /* DTEN: enable data state machine */
+	dprintf(1, "dma enabled: %d\n", DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
+	/* sdio_send_cmd_blocking(7, 0); */
+	//block until reading is done
+	// TODO: remove this
+	while (DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
+	for (int i = 0; i < 2; ++i)
+		byte_swap(buffer[i]);
 }
 
 void read_block(uint32_t length, uint32_t sd_address)
@@ -407,7 +495,7 @@ void read_block(uint32_t length, uint32_t sd_address)
 	/* timeout : 100ms */
 	SDIO_DTIMER = 2400000;
 	SDIO_DLEN = length;	// in bytes
-	SDIO_DCTRL = 	(9 << 4)| /* DATA BLOCKSIZE 2^x bits */
+	SDIO_DCTRL = 	(9 << 4)| /* DATA BLOCKSIZE 2^x bytes */ //TODO waaa blocksize
 			(1 << 3)| /* DMA Enable */
 			(0 << 2)| /* DTMODE: Block (0) or Stream (1) */
 			(1 << 1)| /* DTDIR: to controller */

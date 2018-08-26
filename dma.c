@@ -28,15 +28,24 @@ void dma_channel_init(struct dma_channel *chan)
 	dma_set_memory_size(chan->dma, chan->stream, chan->msize);
 	if (chan->pinc) {
 		dma_enable_peripheral_increment_mode(chan->dma, chan->stream);
+	} else {
+		dma_disable_peripheral_increment_mode(chan->dma, chan->stream);
 	}
 	if (chan->minc) {
 		dma_enable_memory_increment_mode(chan->dma, chan->stream);
+	} else {
+		dma_disable_memory_increment_mode(chan->dma, chan->stream);
 	}
 	dma_channel_select(chan->dma, chan->stream, chan->channel);
+	if (chan->pburst || chan->mburst) {
+		dma_enable_fifo_mode(chan->dma, chan->stream);
+	}
 	dma_set_memory_burst(chan->dma, chan->stream, chan->mburst);
 	dma_set_peripheral_burst(chan->dma, chan->stream, chan->pburst);
 	if (chan->periphflwctrl) {
 		dma_set_peripheral_flow_control(chan->dma, chan->stream);
+	} else {
+		dma_set_dma_flow_control(chan->dma, chan->stream);
 	}
 	dma_set_priority(chan->dma, chan->stream, chan->prio);
 	/* DMA_SCR(chan->dma, chan->stream) = */
@@ -52,11 +61,13 @@ void dma_channel_init(struct dma_channel *chan)
 	if (!chan->periphflwctrl) {
 		dma_set_number_of_data(chan->dma, chan->stream, chan->numberofdata);
 	}
-	dma_enable_stream(chan->dma, chan->stream);
+	dma_channel_enable(chan);
 }
 
 void dma_channel_enable(struct dma_channel *chan)
 {
+	dma_clear_interrupt_flags(chan->dma, chan->stream, DMA_TCIF | DMA_HTIF |
+					DMA_TEIF | DMA_DMEIF | DMA_FEIF);
 	dma_enable_stream(chan->dma, chan->stream);
 }
 
