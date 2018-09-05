@@ -20,9 +20,11 @@
 #include <stdio.h>
 #include <libopencm3/cm3/nvic.h>
 
+/* this driver supports Physical Layer Version 2.00 and High Capacity SD Memory Cards */
+/* high voltage cards only */
+
 #define byte_swap(word) \
 	__asm__("rev %[swap], %[swap]" : [swap] "=r" (word) : "0" (word));
-
 const char *sdiohoststat[] = {
 	"CCRCFAIL",
 	"DCRCFAIL",
@@ -362,9 +364,9 @@ void sdio_identify(void)
 	// repeat ACMD41 until card not busy or number of retries
 	do {
 		sdio_send_cmd_blocking(55, 0);
-		sdio_send_cmd_blocking(41, 0xff8000); // argument needed so that card
-						// knows what voltages are supported
-		//while (!(SDIO_STA & SDIO_STA_CMDREND));
+		sdio_send_cmd_blocking(41, 0x40ff8000); // argument needed so that card
+							// knows we support all except low voltages
+							// and high capacity cards
 	} while (--retries && !(SDIO_RESP1 & 1 << 31));
 	if (!(SDIO_RESP1 & 1 << 31)) {
 		dprintf(0, "SD card not supported!\n");
