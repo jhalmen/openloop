@@ -94,8 +94,25 @@ const char *curr_state[] = {
 
 struct {
 	uint16_t rca;
-	uint32_t last_status;
+	bool sdv2;		// physical spec 2 card?
+	bool high_capacity;
+	uint32_t memcap;	// calculated memory capacity
+	// TODO: take the voltages out, unless you find a card that is special
+	uint16_t voltages;	// this is actually just ocr << 15 & 0x1ff
+	uint32_t last_status;	// store for latest R1 response
+
+	uint32_t ocr;		// operating conditions register
+	uint32_t csd[4];	// card specific data register
+	uint32_t sdstatus[16];
+	uint32_t taac;		// time dependent factor of access time
+	uint32_t nsac;		// clock rate dependent factor of access time
+	uint16_t block_len;	// read=write block length. in bytes
+	uint16_t c_size;	// used to calculate memory capacity
+	uint16_t mult;		// used to calculate memory capacity
+	uint16_t sector_size;	// erasable sector, measured in write blocks
 } sdcard;
+
+#include "sdio_help.c"
 
 static struct dma_channel sd_dma = {
 	.rcc = RCC_DMA2,
@@ -177,7 +194,7 @@ void sdio_clear_host_flag(enum sdio_status_flags flag)
 
 uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 {
-	dprintf(2,"sending cmd %d with arg %08lx", cmd, arg);
+	dprintf(1,"sending cmd %d with arg %08lx", cmd, arg);
 	/* clear flags */
 	SDIO_ICR = (3 << 22) | (2047);
 	uint8_t acmd = (SDIO_RESPCMD & SDIO_RESPCMD_MASK) == 55;
@@ -228,9 +245,9 @@ uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 	SDIO_CMD = tmp;
 	/* wait till sent */
 	while (SDIO_STA & SDIO_STA_CMDACT) {
-		dprintf(2,".");
+		dprintf(1,".");
 	}
-	dprintf(2,"\nsent\n");
+	dprintf(1,"\nsent\n");
 	int ret;
 	if (!resp && SDIO_STA & SDIO_STA_CMDSENT) {
 		ret = 0;
@@ -259,7 +276,7 @@ uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 		print_card_stat();
 	}
 	print_host_stat();
-	dprintf(0,"sending command %d returned %s\n", cmd, sdio_error[ret].msg);
+	/* dprintf(0,"sending command %d returned %s\n", cmd, sdio_error[ret].msg); */
 	if (ret)
 	{
 		if (resp == 3)	// ignore CCRCFAIL for response type R3
@@ -270,8 +287,8 @@ uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 		}
 		/* TODO: something's happened. probably want to let the program */
 		/* know instead of blocking it. */
-		dprintf(0, "stopping\n");
-		while(1);
+		dprintf(0, "sending command has returned error. stopping\n");
+		while(1) __asm__("nop");
 	}
 	return ret;
 }
@@ -320,33 +337,46 @@ uint32_t sdio_get_card_status(void)
 
 void sdio_identify(void)
 {
+	int retries = 3;
 	// according to family reference manual,
 	// set data timer register at this point (rm0368 p.622 -> 5.a)
 	// TODO: -^ or don't if it works
+
 	//activate bus
 	sdio_send_cmd_blocking(0, 0);
-	/* already active */
+
 	/* v.2.0 card? */
 	sdio_send_cmd_blocking(8, 0x1aa);
-	if (sdio_get_resp(1) != 0x1aa) {
-		// card is not v2, this is just a test
-		// not actually needed to be v2 probably
-		// so i might just remove this if
-		while (1) __asm__("nop");
+
+	if (SDIO_RESP1 != 0x1aa) {
+		sdcard.sdv2 = false;
 	}
 
 	//send SD_APP_OP_COND (ACMD41)
 	/* cards respond with operating condition registers,
 	 * incompatible cards are placed in inactive state
 	 */
-	// repeat ACMD41 until no card responds with busy bit set anymore
-	// uint32_t response;
+	// get supported voltages
+	// TODO: do something with these voltages
+	sdio_send_cmd_blocking(55, 0);
+	sdio_send_cmd_blocking(41, 0);
+	sdcard.voltages = SDIO_RESP1 >> 15 & 0x1ff;
+	// repeat ACMD41 until card not busy or number of retries
 	do {
 		sdio_send_cmd_blocking(55, 0);
 		sdio_send_cmd_blocking(41, 0xff8000); // argument needed so that card
 						// knows what voltages are supported
 		//while (!(SDIO_STA & SDIO_STA_CMDREND));
-	} while (!(SDIO_RESP1 & 1 << 31));
+	} while (--retries && !(SDIO_RESP1 & 1 << 31));
+	if (!(SDIO_RESP1 & 1 << 31)) {
+		dprintf(0, "SD card not supported!\n");
+		// clear sd struct
+		for (unsigned int i = 0; i < sizeof sdcard; ++i)
+			*((uint8_t*)&sdcard + i) = 0;
+		return;
+	}
+	sdcard.high_capacity = SDIO_RESP1 >> 30 & 0x1;
+	sdcard.ocr = SDIO_RESP1;
 	//clear response received flag
 	//SDIO_ICR |= SDIO_ICR_CMDRENDC;
 
@@ -373,7 +403,21 @@ void sdio_identify(void)
 	sdio_send_cmd_blocking(55, (sdcard.rca)  << 16);
 	sdio_send_cmd_blocking(42, (sdcard.rca)  << 16);
 	sdio_send_cmd_blocking(7, 0);
+
+	// get remaining sdcard information
+	// CSD Register
+	sdio_send_cmd_blocking(13, sdcard.rca << 16);
+	sdio_send_cmd_blocking(9, sdcard.rca << 16);
+	sdcard.csd[0] = SDIO_RESP1;
+	sdcard.csd[1] = SDIO_RESP2;
+	sdcard.csd[2] = SDIO_RESP3;
+	sdcard.csd[3] = SDIO_RESP4;
+
+	parse_csd();
+
+	// TODO: probably return something to caller in this or in error case
 }
+
 /*
  * Memory access commands include block read commands (CMD17, CMD18), block write commands
  * (CMD24, CMD25), and block erase commands (CMD32, CMD33).
@@ -482,10 +526,12 @@ void read_scr(uint32_t *buffer)
 	dprintf(1, "dma enabled: %d\n", DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
 	/* sdio_send_cmd_blocking(7, 0); */
 	//block until reading is done
-	// TODO: remove this
+	// TODO: remove this blocking
 	while (DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
 	for (int i = 0; i < 2; ++i)
 		byte_swap(buffer[i]);
+	dprintf(1, "dma enabled: %d\n->therefore scr reading finished", DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
+	print_host_stat();
 }
 
 void read_block(uint32_t length, uint32_t sd_address)
