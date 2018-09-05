@@ -130,10 +130,8 @@ static struct dma_channel sd_dma = {
 	.pinc = 0,
 	.prio = DMA_SxCR_PL_HIGH,
 	.periphflwctrl = 1,
-	/* .pburst = DMA_SxCR_PBURST_INCR4, */
-	.pburst = DMA_SxCR_MBURST_SINGLE,
+	.pburst = DMA_SxCR_PBURST_INCR4,
 	.mburst = DMA_SxCR_MBURST_SINGLE,
-	/* .mburst = DMA_SxCR_MBURST_INCR4, */
 	.numberofdata = 0
 };
 
