@@ -281,7 +281,7 @@ uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 	{
 		if (resp == 3)	// ignore CCRCFAIL for response type R3
 			return 0;
-		if (cmd == 7 && arg == 0) {	// CTIMEOUT is a successful deselect of card
+		if (cmd == 7 && arg != (uint32_t)sdcard.rca << 16) {// CTIMEOUT is a successful deselect of card
 			sdcard.last_status = 0;
 			return 0;
 		}
@@ -386,22 +386,17 @@ void sdio_identify(void)
 
 	//send SET_RELATIVE_ADDR (CMD3) to a specific card
 	/* this card enters standby state */
-	/* after powerup or CMD0 (GO_IDLE_STATE) cards are initialized
-	 * with default RCA = 0x0001, maybe i can just use that
-	 */
 	sdio_send_cmd_blocking(3, 0);
-	/* while (!(SDIO_STA & SDIO_STA_CMDREND)); */
+
 	sdcard.rca = SDIO_RESP1 >> 16;
-	//clear response received flag
-	/* SDIO_ICR |= SDIO_ICR_CMDRENDC; */
 
 	/* after detection is done host can send
 	 * SET_CLR_CARD_DETECT (ACMD42) to disable card internal PullUp
 	 * on DAT3 line
 	 */
-	sdio_send_cmd_blocking(7, (sdcard.rca) << 16);
-	sdio_send_cmd_blocking(55, (sdcard.rca)  << 16);
-	sdio_send_cmd_blocking(42, (sdcard.rca)  << 16);
+	sdio_send_cmd_blocking(7, sdcard.rca << 16);
+	sdio_send_cmd_blocking(55, sdcard.rca << 16);
+	sdio_send_cmd_blocking(42, sdcard.rca << 16);
 	sdio_send_cmd_blocking(7, 0);
 
 	// get remaining sdcard information
