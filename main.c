@@ -171,31 +171,25 @@ int main(void)
 	dma_channel_init(&audioout);
 
 	dma_channel_init(&volumes);
+	uint16_t oldvol[3] = {0,0,0};
+
 	adc_setup();
 	encoder_setup();
 	buttons_setup();
 	sddetect_setup();
 
-	uint16_t oldvol[3] = {0,0,0};
+	for (int i = 0; i < 512; ++i)
+		data[i] = 1;
 	if (sddetect()) {
 		sdio_periph_setup();
+		read_status(data);
+		read_scr(data);
 	}
+	while (1) { __asm__("wfi"); }
 
 	sound_setup(&f96k);
 	sound_pause(&audioout);
 	sound_start(&audioout);
-
-
-	data[0]=0;
-
-	read_status(data);
-	while (1) {
-		printdcount();
-		printfifocnt();
-		print_host_stat();
-		__asm__("wfi");
-	}
-
 
 	while (1) {
 		/* input gains and output volume */
@@ -240,6 +234,7 @@ void exti15_10_isr(void)
 	if (exti_get_flag_status(EXTI12)){
 		exti_reset_request(EXTI12);
 		/* stop stomped! */
+		/* consider stopping data transfer */
 		send_codec_cmd(disable);
 		dprintf(0, "stop stomped!\n");
 	}
