@@ -99,8 +99,7 @@ struct {
 	bool sdv2;		// physical spec 2 card?
 	bool high_capacity;
 	uint32_t memcap;	// calculated memory capacity
-	// TODO: take the voltages out, unless you find a card that is special
-	uint16_t voltages;	// this is actually just ocr << 15 & 0x1ff
+	/* uint16_t voltages;	// this is actually just ocr << 15 & 0x1ff */
 	uint32_t last_status;	// store for latest R1 response
 
 	uint32_t ocr;		// operating conditions register
@@ -358,11 +357,13 @@ void sdio_identify(void)
 	/* cards respond with operating condition registers,
 	 * incompatible cards are placed in inactive state
 	 */
-	// get supported voltages
-	// TODO: do something with these voltages
-	sdio_send_cmd_blocking(55, 0);
-	sdio_send_cmd_blocking(41, 0);
-	sdcard.voltages = SDIO_RESP1 >> 15 & 0x1ff;
+	/* do commented out part to actually get supported voltages from card
+	 * instead of assuming them */
+	/* // get supported voltages */
+	/* // TODO: do something with these voltages */
+	/* sdio_send_cmd_blocking(55, 0); */
+	/* sdio_send_cmd_blocking(41, 0); */
+	/* sdcard.voltages = SDIO_RESP1 >> 15 & 0x1ff; */
 	// repeat ACMD41 until card not busy or number of retries
 	do {
 		sdio_send_cmd_blocking(55, 0);
