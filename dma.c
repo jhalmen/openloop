@@ -52,9 +52,11 @@ void dma_channel_init(struct dma_channel *chan)
 	dma_channel_select(chan->dma, chan->stream, chan->channel);
 	if (chan->pburst || chan->mburst) {
 		dma_enable_fifo_mode(chan->dma, chan->stream);
+		dma_set_memory_burst(chan->dma, chan->stream, chan->mburst);
+		dma_set_peripheral_burst(chan->dma, chan->stream, chan->pburst);
+	} else {
+		dma_enable_direct_mode(chan->dma, chan->stream);
 	}
-	dma_set_memory_burst(chan->dma, chan->stream, chan->mburst);
-	dma_set_peripheral_burst(chan->dma, chan->stream, chan->pburst);
 	if (chan->periphflwctrl) {
 		dma_set_peripheral_flow_control(chan->dma, chan->stream);
 	} else {
@@ -73,8 +75,6 @@ void dma_channel_init(struct dma_channel *chan)
 	dma_set_memory_address(chan->dma, chan->stream, chan->maddress);
 	if (!chan->periphflwctrl) {
 		dma_set_number_of_data(chan->dma, chan->stream, chan->numberofdata);
-	} else {
-		dma_set_number_of_data(chan->dma, chan->stream, 0);
 	}
 	dma_channel_enable(chan);
 }
