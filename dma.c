@@ -19,6 +19,19 @@
 
 #include "dma.h"
 
+void dma_print_status(struct dma_channel *chan)
+{
+	dprintf(0, "--- DMA %d STREAM %d STATUS ---\n", (chan->dma == DMA2) ? 2:1,
+				chan->stream);
+	dprintf(0, "ISR: %8x\n", ((chan->stream > 4 ?
+				DMA_HISR(chan->dma) : DMA_LISR(chan->dma))
+				>> DMA_ISR_OFFSET(chan->stream)) & 61);
+	dprintf(0, "SCR: %8x\n", DMA_SCR(chan->dma, chan->stream));
+	dprintf(0, "NoD: %8d\n", DMA_SNDTR(chan->dma, chan->stream));
+	dprintf(0, "PAR: %8x\n", DMA_SPAR(chan->dma, chan->stream));
+	dprintf(0, "MAR: %8x\n", DMA_SM0AR(chan->dma, chan->stream));
+}
+
 void dma_channel_init(struct dma_channel *chan)
 {
 	rcc_periph_clock_enable(chan->rcc);
@@ -60,6 +73,8 @@ void dma_channel_init(struct dma_channel *chan)
 	dma_set_memory_address(chan->dma, chan->stream, chan->maddress);
 	if (!chan->periphflwctrl) {
 		dma_set_number_of_data(chan->dma, chan->stream, chan->numberofdata);
+	} else {
+		dma_set_number_of_data(chan->dma, chan->stream, 0);
 	}
 	dma_channel_enable(chan);
 }
