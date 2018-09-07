@@ -348,7 +348,9 @@ void sdio_identify(void)
 	/* v.2.0 card? */
 	sdio_send_cmd_blocking(8, 0x1aa);
 
-	if (SDIO_RESP1 != 0x1aa) {
+	if (SDIO_RESP1 == 0x1aa) {
+		sdcard.sdv2 = true;
+	} else {
 		sdcard.sdv2 = false;
 	}
 
