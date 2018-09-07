@@ -75,6 +75,8 @@ struct dma_channel audioin = {
 	.prio = DMA_SxCR_PL_HIGH,
 	.periphflwctrl = 0,
 	.pburst = DMA_SxCR_PBURST_SINGLE,
+	/* TODO consider bursting memory sides of audio DMAs */
+	/* .mburst = DMA_SxCR_MBURST_ */
 	.numberofdata = INBUFFERSIZE
 };
 
@@ -117,6 +119,8 @@ uint16_t enable;
 uint16_t vol_full;
 uint16_t vol_low;
 
+void updatevolumes(void);
+
 void printfifocnt(void);
 void printfifo(void);
 void printdcount(void);
@@ -145,6 +149,7 @@ void printdcount(void)
 
 int main(void)
 {
+	///////////////////////// INIT STUFF /////////////////////////
 	pll_setup();
 	systick_setup(1);
 	/* enable_swo(115200); */
@@ -171,7 +176,6 @@ int main(void)
 	dma_channel_init(&audioout);
 
 	dma_channel_init(&volumes);
-	uint16_t oldvol[3] = {0,0,0};
 
 	adc_setup();
 	encoder_setup();
@@ -185,38 +189,77 @@ int main(void)
 		read_status(data);
 		read_scr(data);
 	}
-	while (1) { __asm__("wfi"); }
+	while (1) { __asm__("nop"); }
 
 	sound_setup(&f96k);
 	sound_pause(&audioout);
 	sound_start(&audioout);
 
+	///////////////////////// LOOP STUFF /////////////////////////
+	volatile enum {
+		STANDBY,
+		RECORD,
+		PLAY,
+		OVRDUB
+	} state = STANDBY;
+	bool statechange = true; // TODO this should be global, set in button interrupt
 	while (1) {
-		/* input gains and output volume */
-		if ((abs(oldvol[2] - chanvol[2]) > 10) &&
-			((chanvol[2] >> 2) != (oldvol[2] >> 2))) {
-			send_codec_cmd(MASTDA(chanvol[2] >> 2,1));
-			oldvol[2] = chanvol[2];
+	if (statechange) { // statechange!!
+		statechange = false;
+		switch (state) {
+		case STANDBY:
+			send_codec_cmd(OMUX(1,1));
+			break;
+		case RECORD:
+			send_codec_cmd(OMUX(1, 0));
+			break;
+		case PLAY:
+			break;
+		case OVRDUB:
+			break;
 		}
-		/* uncomment this after soldering potis */
-		/* if ((abs(oldvol[1] - chanvol[1]) > 10) && */
-		/* 	((chanvol[1] >> 2) != (oldvol[1] >> 2))) { */
-		/* 	send_codec_cmd(ADCR(chanvol[1] >> 2,1)); */
-		/* 	oldvol[1] = chanvol[1]; */
-		/* } */
-		/* if ((abs(oldvol[0] - chanvol[0]) > 10) && */
-		/* 	((chanvol[0] >> 2) != (oldvol[0] >> 2))) { */
-		/* 	send_codec_cmd(ADCL(chanvol[0] >> 2,1)); */
-		/* 	oldvol[0] = chanvol[0]; */
-		/* } */
+	}
+	while (!statechange && (state == STANDBY || state == RECORD)) {
+		/* donothing for the standby case*/
+		/* once DMAs are set up correctly,
+		 * enev in record there's nothing to do than to set volumes */
+		updatevolumes();
+		__asm__("nop");
+	}
 
-		/* get encoder position */
-		printf("encoder at position %d\n", encpos());
-			 __asm__("wfi");
-			/* __asm__("wfe"); */
-			/* __asm__("nop"); */
+	while (!statechange && (state == PLAY || state == OVRDUB)) {
+		/* dacbuffer = adcbuffer >> 1 + sdbuffer >> 1; */
+		updatevolumes(); // from time to time...
+		__asm__("nop");
+	}
+			__asm__("nop");
+			/* __asm__("wfi"); */
+		updatevolumes();
+		dprintf(0, "encoder at position %d\n", encpos());
 	}
 	return 0;
+}
+
+void updatevolumes(void)
+{
+	static uint16_t oldvol[3] = {0,0,0};
+	/* input gains and output volume */
+	if ((abs(oldvol[2] - chanvol[2]) > 10) &&
+		((chanvol[2] >> 2) != (oldvol[2] >> 2))) {
+		send_codec_cmd(MASTDA(chanvol[2] >> 2,1));
+		oldvol[2] = chanvol[2];
+	}
+	/* uncomment this after soldering potis */
+	/* if ((abs(oldvol[1] - chanvol[1]) > 10) && */
+	/* 	((chanvol[1] >> 2) != (oldvol[1] >> 2))) { */
+	/* 	send_codec_cmd(ADCR(chanvol[1] >> 2,1)); */
+	/* 	oldvol[1] = chanvol[1]; */
+	/* } */
+	/* if ((abs(oldvol[0] - chanvol[0]) > 10) && */
+	/* 	((chanvol[0] >> 2) != (oldvol[0] >> 2))) { */
+	/* 	send_codec_cmd(ADCL(chanvol[0] >> 2,1)); */
+	/* 	oldvol[0] = chanvol[0]; */
+	/* } */
 }
 
 void sys_tick_handler(void)
