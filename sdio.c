@@ -104,6 +104,7 @@ struct {
 
 	uint32_t ocr;		// operating conditions register
 	uint32_t csd[4];	// card specific data register
+	uint32_t scr[2];	// sd card configuration register
 	uint32_t sdstatus[16];
 	uint32_t taac;		// time dependent factor of access time
 	uint32_t nsac;		// clock rate dependent factor of access time
@@ -514,7 +515,6 @@ void read_scr(uint32_t *buffer)
 	sdio_send_cmd_blocking(51, sdcard.rca<<16);
 	/* timeout : 100ms */
 	SDIO_DTIMER = 2400000;
-	/* SDIO_DTIMER = 0xffffffff; */
 	SDIO_DLEN = 8;
 	SDIO_DCTRL = 	(3 << 4)| /* DATA BLOCKSIZE 2^x bytes */
 			(1 << 3)| /* DMA Enable */
@@ -529,7 +529,10 @@ void read_scr(uint32_t *buffer)
 	for (int i = 0; i < 2; ++i)
 		byte_swap(buffer[i]);
 	dprintf(1, "dma enabled: %d\n->therefore scr reading finished", DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
+	sdcard.scr[0] = buffer[0];
+	sdcard.scr[1] = buffer[1];
 	print_host_stat();
+	printscr();
 }
 
 void read_block(uint32_t length, uint32_t sd_address)

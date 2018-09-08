@@ -73,6 +73,10 @@ void get_c_size_mult(uint32_t data, char *buf);
 void get_sector_size(uint32_t data, char *buf);
 void get_wp_grp_size(uint32_t data, char *buf);
 void get_r2w_factor(uint32_t data, char *buf);
+void get_scr(uint32_t data, char *buf);
+void get_spec(uint32_t data, char *buf);
+void get_security(uint32_t data, char *buf);
+void get_busw(uint32_t data, char *buf);
 
 struct sdslice{
 	char *identifier;
@@ -153,6 +157,61 @@ struct sdslice SD_csd_v2[] = {
 //	{"FILE_FORMAT", 11,10,func},
 	{NULL, 0,0, NULL}
 };
+
+struct sdslice SD_scr[]={
+	{"SCR_STRUCTURE", 63,60, get_scr},
+	{"SD_SPEC", 59,56, get_spec},
+	{"DATA_STAT_AFTER_ERASE", 55,55, getbool},
+	{"SD_SECURITY", 54,52, get_security},
+	{"SD_BUS_WIDTHS", 51,48, get_busw},
+	{NULL, 0,0, NULL}
+};
+
+void get_scr(uint32_t data, char *buf)
+{
+	snprintf(buf, 16, "%s", data?"reserved":"Version 1.01-2.00");
+}
+void get_spec(uint32_t data, char *buf)
+{
+	switch (data) {
+	case 0:
+		snprintf(buf, 16, "Version 1.0-.01");
+		break;
+	case 1:
+		snprintf(buf, 16, "Version 1.10");
+		break;
+	case 2:
+		snprintf(buf, 16, "Version 2.00");
+		break;
+	default:
+		snprintf(buf, 16, "reserved");
+	}
+}
+
+void get_security(uint32_t data, char *buf)
+{
+	switch (data) {
+	case 0:
+		snprintf(buf, 16, "no security");
+		break;
+	case 1:
+		snprintf(buf, 16, "not used");
+		break;
+	case 2:
+		snprintf(buf, 16, "Version 1.01");
+		break;
+	case 3:
+		snprintf(buf, 16, "Version 2.00");
+		break;
+	default:
+		snprintf(buf, 16, "reserved");
+	}
+}
+
+void get_busw(uint32_t data, char *buf)
+{
+	snprintf(buf, 16, "%ld= 0br4r1", data);
+}
 
 void getbool(uint32_t data, char *buf)
 {
@@ -408,3 +467,9 @@ inline void parse_csd(void)
 			16, "#######     CSD     #######");
 	calculate_memory_capacity();
 }
+void printscr(void);
+inline void printscr(void)
+{
+	printsdslice (sdcard.scr, SD_scr, 8, "#######     SCR     #######");
+}
+
