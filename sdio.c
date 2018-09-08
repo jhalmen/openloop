@@ -479,7 +479,7 @@ void write_single_block(uint32_t *buffer, uint32_t sd_address)
 			(1 << 0); /* DTEN: enable data state machine */
 }
 
-void read_status(uint32_t *buffer)
+void read_status(void)
 {
 	dma_channel_disable(&sd_dma);
 	// select card
@@ -488,7 +488,7 @@ void read_status(uint32_t *buffer)
 	}
 	// take care of dma
 	sd_dma.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM;
-	sd_dma.maddress = (uint32_t)buffer;
+	sd_dma.maddress = (uint32_t)sdcard.sdstatus;
 	dma_channel_init(&sd_dma);
 	// ACMD13
 	sdio_send_cmd_blocking(55, sdcard.rca << 16);
@@ -503,15 +503,13 @@ void read_status(uint32_t *buffer)
 			(1 << 0); /* DTEN: enable data state machine */
 	/* wait until data is here */
 	while (DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
-	print_host_stat();
 	for (int i = 0; i < 16; ++i) {
 		/* wide width data. msb first */
 		/* data comes in wrong way around */
 		/* swap bytewise in word */
-		byte_swap(buffer[i]);
-		/* copy data to sdcard struct */
-		sdcard.sdstatus[i] = buffer[i];
+		byte_swap(sdcard.sdstatus[i]);
 	}
+	print_host_stat();
 	printsdstatus();
 }
 

@@ -35,7 +35,7 @@ uint32_t sdio_get_host_pwr(void);
 void print_card_stat(void);
 void print_host_stat(void);
 void print_response_raw(void);
-void read_status(uint32_t *data);
+void read_status(void);
 void read_scr(uint32_t *data);
 void read_single_block(uint32_t *dest_buffer, uint32_t sd_address);
 void write_single_block(uint32_t *data, uint32_t sd_address);
