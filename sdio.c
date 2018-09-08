@@ -510,7 +510,7 @@ void read_status(void)
 	printsdstatus();
 }
 
-void read_scr(uint32_t *buffer)
+void read_scr(void)
 {
 	// select card
 	if ((sdcard.last_status & (4 << 9)) == 0) {
@@ -518,7 +518,7 @@ void read_scr(uint32_t *buffer)
 	}
 	// take care of dma
 	sd_dma.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM;
-	sd_dma.maddress = (uint32_t)buffer;
+	sd_dma.maddress = (uint32_t)sdcard.scr;
 	dma_channel_init(&sd_dma);
 	// ACMD51
 	sdio_send_cmd_blocking(55, sdcard.rca<<16);
@@ -535,8 +535,7 @@ void read_scr(uint32_t *buffer)
 	while (DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
 	for (int i = 0; i < 2; ++i) {
 		/* wide width data. msb first */
-		byte_swap(buffer[i]);
-		sdcard.scr[i] = buffer[i];
+		byte_swap(sdcard.scr[i]);
 	}
 	print_host_stat();
 	printscr();

@@ -187,7 +187,7 @@ int main(void)
 	if (sddetect()) {
 		sdio_periph_setup();
 		read_status();
-		read_scr(data);
+		read_scr();
 	}
 	while (1) { __asm__("nop"); }
 
