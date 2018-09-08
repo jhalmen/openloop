@@ -529,16 +529,13 @@ void read_scr(uint32_t *buffer)
 			(0 << 2)| /* DTMODE: Block (0) or Stream (1) */
 			(1 << 1)| /* DTDIR: to controller */
 			(1 << 0); /* DTEN: enable data state machine */
-	dprintf(1, "dma enabled: %d\n", DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
-	/* sdio_send_cmd_blocking(7, 0); */
-	//block until reading is done
-	// TODO: remove this blocking
+	// wait until data is here
 	while (DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
-	for (int i = 0; i < 2; ++i)
+	for (int i = 0; i < 2; ++i) {
+		/* wide width data. msb first */
 		byte_swap(buffer[i]);
-	dprintf(1, "dma enabled: %d\n->therefore scr reading finished", DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
-	sdcard.scr[0] = buffer[0];
-	sdcard.scr[1] = buffer[1];
+		sdcard.scr[i] = buffer[i];
+	}
 	print_host_stat();
 	printscr();
 }
