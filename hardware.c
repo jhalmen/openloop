@@ -364,9 +364,8 @@ void sdio_periph_setup(void)
 	gpio_set_af(GPIOC, GPIO_AF12, GPIO8 | GPIO9 | GPIO10 | GPIO11 | GPIO12);
 	gpio_set_output_options(GPIOC, GPIO_OTYPE_PP,
 			GPIO_OSPEED_50MHZ, GPIO8 | GPIO9 | GPIO10 | GPIO11 | GPIO12);
-	gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO12);
-	/* as the card starts out in 1bit mode, those pins stay floating */
-	gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO8);
+	gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_NONE,
+				GPIO8 | GPIO9 | GPIO10 | GPIO11 | GPIO12);
 	/* take care of sdio configuration */
 	rcc_periph_reset_pulse(RCC_SDIO);
 	rcc_periph_clock_enable(RCC_SDIO);

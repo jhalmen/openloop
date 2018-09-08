@@ -147,6 +147,7 @@ struct {
 	{EUNKNOWN,	"UNKNOWN"}
 };
 
+void sd_enable_wbus(void);
 
 uint32_t sdio_get_host_pwr()
 {
@@ -414,6 +415,8 @@ void sdio_identify(void)
 
 	parse_csd();
 
+	sd_enable_wbus();
+
 	// TODO: probably return something to caller in this or in error case
 }
 
@@ -586,4 +589,15 @@ void sd_stop_data_transfer(void)
 {
 	/* TODO: maybe check for correct status before sending the command blindly */
 	sdio_send_cmd_blocking(12, sdcard.rca << 16);
+}
+
+void sd_enable_wbus(void)
+{
+	// select card
+	if ((sdcard.last_status & (4 << 9)) == 0) {
+		sdio_send_cmd_blocking(7, sdcard.rca<<16);
+	}
+	sdio_send_cmd_blocking(55, sdcard.rca << 16);
+	sdio_send_cmd_blocking(6, 2);
+	sdio_set_bus_width(SDIO_BUSW_4);
 }
