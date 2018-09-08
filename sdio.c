@@ -412,7 +412,6 @@ void sdio_identify(void)
 	sdcard.csd[1] = SDIO_RESP2;
 	sdcard.csd[2] = SDIO_RESP3;
 	sdcard.csd[3] = SDIO_RESP4;
-
 	parse_csd();
 
 	sd_enable_wbus();
@@ -459,7 +458,6 @@ void sdio_identify(void)
 void write_single_block(uint32_t *buffer, uint32_t sd_address)
 {
 	/* TODO maybe check card&host status to be clear to write block? */
-	dma_channel_disable(&sd_dma);
 	// select card
 	if ((sdcard.last_status & (4 << 9)) == 0) {
 		sdio_send_cmd_blocking(7, sdcard.rca << 16);
@@ -481,7 +479,6 @@ void write_single_block(uint32_t *buffer, uint32_t sd_address)
 
 void read_status(void)
 {
-	dma_channel_disable(&sd_dma);
 	// select card
 	if ((sdcard.last_status & (4 << 9)) == 0) {
 		sdio_send_cmd_blocking(7, sdcard.rca << 16);
@@ -515,7 +512,6 @@ void read_status(void)
 
 void read_scr(uint32_t *buffer)
 {
-	dma_channel_disable(&sd_dma);
 	// select card
 	if ((sdcard.last_status & (4 << 9)) == 0) {
 		sdio_send_cmd_blocking(7, sdcard.rca<<16);
