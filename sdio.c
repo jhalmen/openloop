@@ -476,27 +476,35 @@ void read_status(uint32_t *buffer)
 	dma_channel_disable(&sd_dma);
 	// select card
 	if ((sdcard.last_status & (4 << 9)) == 0) {
-		sdio_send_cmd_blocking(7, sdcard.rca<<16);
+		sdio_send_cmd_blocking(7, sdcard.rca << 16);
 	}
 	// take care of dma
 	sd_dma.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM;
 	sd_dma.maddress = (uint32_t)buffer;
 	dma_channel_init(&sd_dma);
-	dprintf(0, "dma enabled: %d\n", DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
 	// ACMD13
-	sdio_send_cmd_blocking(55, sdcard.rca<<16);
-	sdio_send_cmd_blocking(13, sdcard.rca<<16);
+	sdio_send_cmd_blocking(55, sdcard.rca << 16);
+	sdio_send_cmd_blocking(13, sdcard.rca << 16);
 	/* timeout : 100ms */
 	SDIO_DTIMER = 2400000;
-	/* SDIO_DTIMER = 24000000; */
 	SDIO_DLEN = 64;
 	SDIO_DCTRL = 	(6 << 4)| /* DATA BLOCKSIZE 2^x bytes */
 			(1 << 3)| /* DMA Enable */
 			(0 << 2)| /* DTMODE: Block (0) or Stream (1) */
 			(1 << 1)| /* DTDIR: to controller */
 			(1 << 0); /* DTEN: enable data state machine */
-	dprintf(0, "dma enabled: %d\n", DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
-	/* sdio_send_cmd_blocking(7, 0); */
+	/* wait until data is here */
+	while (DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
+	print_host_stat();
+	for (int i = 0; i < 16; ++i) {
+		/* wide width data. msb first */
+		/* data comes in wrong way around */
+		/* swap bytewise in word */
+		byte_swap(buffer[i]);
+		/* copy data to sdcard struct */
+		sdcard.sdstatus[i] = buffer[i];
+	}
+	printsdstatus();
 }
 
 void read_scr(uint32_t *buffer)
