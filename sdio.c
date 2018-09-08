@@ -581,3 +581,9 @@ void erase(uint32_t start, uint32_t nblocks)
 	start+=0;
 	nblocks+=0;
 }
+
+void sd_stop_data_transfer(void)
+{
+	/* TODO: maybe check for correct status before sending the command blindly */
+	sdio_send_cmd_blocking(12, sdcard.rca << 16);
+}
