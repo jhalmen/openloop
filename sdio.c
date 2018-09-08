@@ -456,22 +456,27 @@ void sdio_identify(void)
  * */
 
 
-void write_block(uint32_t *buffer, uint32_t length, uint32_t sd_address)
+void write_single_block(uint32_t *buffer, uint32_t sd_address)
 {
+	/* TODO maybe check card&host status to be clear to write block? */
+	dma_channel_disable(&sd_dma);
+	// select card
+	if ((sdcard.last_status & (4 << 9)) == 0) {
+		sdio_send_cmd_blocking(7, sdcard.rca << 16);
+	}
 	sd_dma.direction = DMA_SxCR_DIR_MEM_TO_PERIPHERAL;
 	sd_dma.maddress = (uint32_t)buffer;
-	//TODO init dma dir to card
+	/* CMD WRITE_SINGLE_BLOCK */
 	sdio_send_cmd_blocking(24, sd_address);
 	dma_channel_init(&sd_dma);
 	/* timeout : 250ms */
 	SDIO_DTIMER = 6000000;
-	SDIO_DLEN = length;
+	SDIO_DLEN = 512;
 	SDIO_DCTRL = 	(9 << 4)| /* DATA BLOCKSIZE 2^x bytes */
 			(1 << 3)| /* DMA Enable */
 			(0 << 2)| /* DTMODE: Block (0) or Stream (1) */
 			(0 << 1)| /* DTDIR: from controller */
 			(1 << 0); /* DTEN: enable data state machine */
-	/* sdio_send_cmd_blocking(7,0); */
 }
 
 void read_status(uint32_t *buffer)
