@@ -337,7 +337,7 @@ uint32_t sdio_get_card_status(void)
 
 void sdio_identify(void)
 {
-	int retries = 3;
+	int retries = 10;
 	// according to family reference manual,
 	// set data timer register at this point (rm0368 p.622 -> 5.a)
 	// TODO: -^ or don't if it works
