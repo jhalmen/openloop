@@ -18,14 +18,13 @@
  */
 #include "hardware.h"
 #include "wm8778.h"
-#include "sine.h"
 #include "swo.h"
 #include <stdlib.h>
 
 uint8_t printall = 1;
 
-#define OUTBUFFERSIZE (512)
-#define INBUFFERSIZE (32)
+#define OUTBUFFERSIZE (8192)
+#define INBUFFERSIZE (8192)
 
 uint32_t tick = 0;
 
@@ -155,14 +154,6 @@ int main(void)
 	/* enable_swo(115200); */
 	enable_swo(230400);
 	/* enable_swo(2250000); */
-
-	//play ( buffer of single audio, number of points)
-	uint16_t *address = sine_256;
-	uint16_t n = OUTBUFFERSIZE/2;
-	for (int i = 0; i < n; ++i){
-		outstream[2*i] = address[i] - 0x8000;
-		outstream[2*i+1] = address[i] - 0x8000;
-	}
 
 	i2c_setup();
 
