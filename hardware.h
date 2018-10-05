@@ -46,6 +46,7 @@ void systick_setup(uint32_t tick_frequency);
 uint32_t i2s_read(uint32_t i2s);
 uint8_t chkside(uint32_t i2s);
 void i2s_enable(uint32_t i2s);
+void i2s_disable(uint32_t i2s);
 void adc_setup(void);
 void encoder_setup(void);
 uint8_t encpos(void);
@@ -69,8 +70,6 @@ struct i2sfreq {
 };
 
 void sound_setup(struct i2sfreq * f);
-void sound_pause(struct dma_channel *chan);
-void sound_start(struct dma_channel *chan);
 
 /* delete this debug function */
 uint32_t get_i2c_stat1(void);

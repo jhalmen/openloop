@@ -187,6 +187,11 @@ void i2s_enable(uint32_t i2s)
 	SPI_I2SCFGR(i2s) |= SPI_I2SCFGR_I2SE;
 }
 
+void i2s_disable(uint32_t i2s)
+{
+	SPI_I2SCFGR(i2s) &= ~SPI_I2SCFGR_I2SE;
+}
+
 uint32_t i2s_read(uint32_t i2s)
 {
 	if (SPI_I2SCFGR(i2s) & SPI_I2SCFGR_DATLEN_32BIT) {
@@ -279,20 +284,6 @@ void sound_setup(struct i2sfreq * f)
 	/* slave has to be enabled before the master! */
 	i2s_enable(I2S2ext);
 	i2s_enable(I2S2);
-}
-
-void sound_pause(struct dma_channel *chan)
-{
-	dma_disable_stream(chan->dma, chan->stream);
-	/* spi_disable(I2S2ext); */
-	/* spi_disable(I2S2); */
-}
-
-void sound_start(struct dma_channel *chan)
-{
-	dma_enable_stream(chan->dma, chan->stream);
-	/* enable_i2s(I2S2ext); */
-	/* enable_i2s(I2S2); */
 }
 
 void encoder_setup(void)

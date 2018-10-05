@@ -183,8 +183,6 @@ int main(void)
 	while (1) { __asm__("nop"); }
 
 	sound_setup(&f96k);
-	sound_pause(&audioout);
-	sound_start(&audioout);
 
 	///////////////////////// LOOP STUFF /////////////////////////
 	volatile enum {
