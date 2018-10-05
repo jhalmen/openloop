@@ -118,6 +118,9 @@ uint16_t enable;
 uint16_t vol_full;
 uint16_t vol_low;
 
+
+void copybufferstep(void);
+
 void updatevolumes(void);
 
 void printfifocnt(void);
@@ -180,7 +183,7 @@ int main(void)
 		read_status();
 		read_scr();
 	}
-	while (1) { __asm__("nop"); }
+	/* while (1) { __asm__("nop"); } */
 
 	sound_setup(&f96k);
 
@@ -209,7 +212,9 @@ int main(void)
 	while (!statechange && (state == STANDBY || state == RECORD)) {
 		/* donothing for the standby case*/
 		/* once DMAs are set up correctly,
-		 * enev in record there's nothing to do than to set volumes */
+		 * even in record there's nothing to do than to set volumes */
+		copybufferstep();
+		/* TODO check this is fast enough using e.g. oscilloscope */
 		updatevolumes();
 		__asm__("nop");
 	}
@@ -227,6 +232,15 @@ int main(void)
 	return 0;
 }
 
+void copybufferstep(void)
+{
+	static int inp = 0, outp = 0;
+	if (inp == INBUFFERSIZE) inp = 0;
+	if (outp == OUTBUFFERSIZE) outp = 0;
+	outstream[outp++] = instream[inp++];
+	outstream[outp++] = instream[inp++];
+}
+
 void updatevolumes(void)
 {
 	static uint16_t oldvol[3] = {0,0,0};
@@ -237,6 +251,7 @@ void updatevolumes(void)
 		oldvol[2] = chanvol[2];
 	}
 	/* uncomment this after soldering potis */
+	/* TODO check to use PGA here */
 	/* if ((abs(oldvol[1] - chanvol[1]) > 10) && */
 	/* 	((chanvol[1] >> 2) != (oldvol[1] >> 2))) { */
 	/* 	send_codec_cmd(ADCR(chanvol[1] >> 2,1)); */
