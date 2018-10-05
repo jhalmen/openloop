@@ -17,8 +17,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LIBWM8778_H
-#define LIBWM8778_H
+#ifndef WM8778_H
+#define WM8778_H
 
 #include <stdint.h>
 /*Digital Attenuation DACL*/
@@ -87,4 +87,4 @@ uint16_t OMUX(uint8_t MXDAC, uint8_t MXBYP);
 
 /*Software Reset*/
 uint16_t RESET(void);
-#endif /* LIBWM8778_H */
+#endif /* WM8778_H */

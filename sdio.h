@@ -16,6 +16,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#ifndef SDIO_H
+#define SDIO_H
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/sdio.h>
 #include "dma.h"
@@ -47,4 +50,4 @@ enum {
 	ECCRCFAIL,
 	EUNKNOWN
 };
-
+#endif
