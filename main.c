@@ -197,10 +197,8 @@ int main(void)
 		statechange = false;
 		switch (state) {
 		case STANDBY:
-			send_codec_cmd(OMUX(1,1));
 			break;
 		case RECORD:
-			send_codec_cmd(OMUX(1, 0));
 			break;
 		case PLAY:
 			break;
