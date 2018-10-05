@@ -22,23 +22,20 @@
 
 #include <stdint.h>
 /*Digital Attenuation DACL*/
-/* #define LDA(val) 	((uint16_t) ((((0x03 << 1) + 1) << 8) + (uint8_t) (val))) */
 uint16_t LDA(uint8_t att, uint8_t update);
 
 /*Digital Attenutaion DACR*/
-/* #define RDA(val) 	((uint16_t) ((((0x04 << 1) + 1) << 8) + (uint8_t) (val))) */
 uint16_t RDA(uint8_t att, uint8_t update);
 
 /*Master Digital Attenuation (All Channels)*/
-/* #define MASTDA(val) 	((uint16_t) ((((0x05 << 1) + 1) << 8) + (uint8_t) (val))) */
 uint16_t MASTDA(uint8_t att, uint8_t update);
 
 /*Phase Swaps*/
-/* #define PHASE(val)	((uint16_t) ((0x06 << 9) + ( 0x03 & (uint8_t) (val)))) */
 uint16_t PHASE(uint8_t inv_left, uint8_t inv_right);
 
 /*DAC Control*/
-uint16_t DAC_C1(uint8_t DZCEN, uint8_t ATC, uint8_t IZD, uint8_t TOD, uint8_t PL);
+uint16_t DAC_C1(uint8_t DZCEN, uint8_t ATC, uint8_t IZD,
+		uint8_t TOD, uint8_t PL);
 
 /*DAC Mute*/
 uint16_t DMUTE(uint8_t mute);
@@ -50,10 +47,12 @@ uint16_t DAC_C2(uint8_t DEEMP, uint8_t DZFM);
 uint16_t DAC_IC(uint8_t DACFMT, uint8_t DACLRP, uint8_t DACBCP, uint8_t DACWL);
 
 /*ADC Interface Control*/
-uint16_t ADC_IC(uint8_t ADCFMT, uint8_t ADCLRP, uint8_t ADCBCP, uint8_t ADCWL, uint8_t ADCMCLK, uint8_t ADCHPD);
+uint16_t ADC_IC(uint8_t ADCFMT, uint8_t ADCLRP, uint8_t ADCBCP,
+		uint8_t ADCWL, uint8_t ADCMCLK, uint8_t ADCHPD);
 
 /*Master Mode Control*/
-uint16_t MMC(uint8_t ADCRATE, uint8_t ADCOSR, uint8_t DACRATE, uint8_t DACMS, uint8_t ADCMS);
+uint16_t MMC(uint8_t ADCRATE, uint8_t ADCOSR, uint8_t DACRATE,
+		uint8_t DACMS, uint8_t ADCMS);
 
 /*PWR Down Control*/
 uint16_t PWR_C(uint8_t PDWN, uint8_t ADCPD, uint8_t DACPD, uint8_t AINPD);
