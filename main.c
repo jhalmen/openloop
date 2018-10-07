@@ -119,6 +119,7 @@ uint16_t vol_full;
 uint16_t vol_low;
 
 
+void copybufferstep(void);
 void copybufferstepblind(void);
 
 void updatevolumes(void);
@@ -216,7 +217,7 @@ int main(void)
 		}
 		if (statechange == DONE) break;
 		/* donothing for the standby case */
-		copybufferstepblind();
+		copybufferstep();
 		updatevolumes();
 		__asm__("nop");
 	}
@@ -261,6 +262,50 @@ int main(void)
 	}
 	}
 	return 0;
+}
+
+struct copystruct{
+	int16_t *source;
+	uint32_t slen;
+	uint32_t s_at;
+	int16_t *dest;
+	uint32_t dlen;
+	uint32_t d_at;
+	int32_t done;
+	int32_t readylast;
+};
+
+void copybufferstep(void)
+{
+	static struct copystruct cs = {
+		.source = instream,
+		.slen = INBUFFERSIZE,
+		.s_at = 0,
+		.dest = outstream,
+		.dlen = OUTBUFFERSIZE,
+		.d_at = 0,
+		.done = 0,
+		.readylast = 0
+	};
+
+	int32_t ready = cs.slen - DMA_SNDTR(audioin.dma, audioin.stream);
+	if (ready < cs.readylast) {
+		/* dprintf(2, "ready wrapped around\n"); */
+		cs.done -= cs.slen;
+	}
+	cs.readylast = ready;
+	/* dprintf(2, "d=%d, r=%d  ", cs.done, ready); */
+	if (cs.done >= ready) {
+		/* dprintf(2, "done early\n"); */
+		return;
+	}
+	/* dprintf(2, "copying %d nod\n", ready-cs.done); */
+	for (; cs.done <= ready; ++cs.done) {
+		/* TODO check for off by one */
+		cs.dest[cs.d_at++] = cs.source[cs.s_at++];
+		if (cs.d_at == cs.dlen) cs.d_at = 0;
+		if (cs.s_at == cs.slen) cs.s_at = 0;
+	}
 }
 
 void copybufferstepblind(void)
