@@ -119,7 +119,7 @@ uint16_t vol_full;
 uint16_t vol_low;
 
 
-void copybufferstep(void);
+void copybufferstepblind(void);
 
 void updatevolumes(void);
 
@@ -148,6 +148,19 @@ void printdcount(void)
 		printf("dcount: %ld\n", SDIO_DCOUNT);
 	}
 }
+
+const enum {
+	START = 1,
+	STOP = 2,
+	MENU = 4,
+	DONE = 128
+} statechange = 0;
+volatile enum {
+	STANDBY,
+	RECORD,
+	PLAY,
+	OVRDUB
+} state = STANDBY;
 
 int main(void)
 {
@@ -188,52 +201,71 @@ int main(void)
 	sound_setup(&f96k);
 
 	///////////////////////// LOOP STUFF /////////////////////////
-	volatile enum {
-		STANDBY,
-		RECORD,
-		PLAY,
-		OVRDUB
-	} state = STANDBY;
-	bool statechange = true; // TODO this should be global, set in button interrupt
 	while (1) {
-	if (statechange) { // statechange!!
-		statechange = false;
-		switch (state) {
-		case STANDBY:
+	while (state == STANDBY) {
+		switch (statechange) {
+		case START:
+			statechange = DONE;
 			break;
-		case RECORD:
+		case STOP:
+			statechange = 0;
 			break;
-		case PLAY:
-			break;
-		case OVRDUB:
+		case MENU:
+			statechange = 0;
 			break;
 		}
-	}
-	while (!statechange && (state == STANDBY || state == RECORD)) {
-		/* donothing for the standby case*/
-		/* once DMAs are set up correctly,
-		 * even in record there's nothing to do than to set volumes */
-		copybufferstep();
-		/* TODO check this is fast enough using e.g. oscilloscope */
+		if (statechange == DONE) break;
+		/* donothing for the standby case */
+		copybufferstepblind();
 		updatevolumes();
 		__asm__("nop");
 	}
-
-	while (!statechange && (state == PLAY || state == OVRDUB)) {
+	while (state == RECORD) {
+		switch (statechange) {
+		case START:
+			statechange = DONE;
+			break;
+		case STOP:
+			statechange = 0;
+			break;
+		case MENU:
+			statechange = 0;
+			break;
+		}
+		if (statechange == DONE) break;
+		copybufferstepblind();
+		updatevolumes();
+		__asm__("nop");
+	}
+	while (state == PLAY) {
+		switch (statechange) {
+		case START:
+			statechange = DONE;
+			break;
+		case STOP:
+			statechange = 0;
+			break;
+		case MENU:
+			statechange = 0;
+			break;
+		}
+		if (statechange == DONE) break;
+		copybufferstepblind();
+		updatevolumes();
+		__asm__("nop");
+	}
+	while (state == OVRDUB) {
 		/* dacbuffer = adcbuffer >> 1 + sdbuffer >> 1; */
 		updatevolumes(); // from time to time...
 		__asm__("nop");
 	}
-			__asm__("nop");
-			/* __asm__("wfi"); */
-		updatevolumes();
-		dprintf(0, "encoder at position %d\n", encpos());
 	}
 	return 0;
 }
 
-void copybufferstep(void)
+void copybufferstepblind(void)
 {
+	/* TODO check this is fast enough using e.g. oscilloscope */
 	static int inp = 0, outp = 0;
 	if (inp == INBUFFERSIZE) inp = 0;
 	if (outp == OUTBUFFERSIZE) outp = 0;
@@ -275,6 +307,7 @@ void exti15_10_isr(void)
 		exti_reset_request(EXTI11);
 		/* start stomped! */
 		dprintf(0, "start stomped!\n");
+		statechange |= START;
 	}
 	if (exti_get_flag_status(EXTI12)){
 		exti_reset_request(EXTI12);
@@ -282,6 +315,7 @@ void exti15_10_isr(void)
 		/* consider stopping data transfer */
 		send_codec_cmd(disable);
 		dprintf(0, "stop stomped!\n");
+		statechange |= STOP;
 	}
 }
 
@@ -291,6 +325,6 @@ void exti2_isr(void)
 	/* menu button pressed */
 	send_codec_cmd(enable);
 	dprintf(0, "menu pressed!\n");
-
+	statechange |= MENU;
 }
 
