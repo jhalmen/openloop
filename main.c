@@ -75,7 +75,9 @@ struct dma_channel audioin = {
 	.pburst = DMA_SxCR_PBURST_SINGLE,
 	/* TODO consider bursting memory sides of audio DMAs */
 	/* .mburst = DMA_SxCR_MBURST_ */
-	.numberofdata = INBUFFERSIZE
+	.numberofdata = INBUFFERSIZE,
+	.interrupts = DMA_SxCR_TCIE | DMA_SxCR_HTIE,
+	.nvic =  NVIC_DMA1_STREAM3_IRQ
 };
 
 struct dma_channel volumes = {
@@ -395,3 +397,14 @@ void exti2_isr(void)
 	statechange = MENU;
 }
 
+void dma1_stream3_isr(void)
+{
+	if (dma_get_interrupt_flag(DMA1, DMA_STREAM3, DMA_HTIF)) {
+		dma_clear_interrupt_flags(DMA1, DMA_STREAM3, DMA_HTIF);
+		/* audioin transfer half complete */
+	}
+	if (dma_get_interrupt_flag(DMA1, DMA_STREAM3, DMA_TCIF)) {
+		dma_clear_interrupt_flags(DMA1, DMA_STREAM3, DMA_TCIF);
+		/* audioin transfer complete */
+	}
+}
