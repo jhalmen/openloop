@@ -21,7 +21,6 @@
 #include "swo.h"
 #include <stdlib.h>
 
-uint8_t printall = 1;
 
 #define OUTBUFFERSIZE (8192)
 #define INBUFFERSIZE (8192)
@@ -150,11 +149,10 @@ void printdcount(void)
 	}
 }
 
-const enum {
+enum {
 	START = 1,
 	STOP = 2,
-	MENU = 4,
-	DONE = 128
+	MENU = 4
 } statechange = 0;
 volatile enum {
 	STANDBY,
@@ -203,28 +201,44 @@ int main(void)
 
 	///////////////////////// LOOP STUFF /////////////////////////
 	while (1) {
+	dprintf(0, "state STANDBY\n");
 	while (state == STANDBY) {
 		switch (statechange) {
 		case START:
-			statechange = DONE;
+			/* if previous recording available */
+			state = PLAY;
+			/* else */
+			state = RECORD;
+			/* until implemented */
+			state = STANDBY;
+			statechange = 0;
 			break;
 		case STOP:
-			statechange = 0;
+			state = PLAY;
 			break;
 		case MENU:
 			statechange = 0;
 			break;
 		}
-		if (statechange == DONE) break;
+		if (statechange) {
+			statechange = 0;
+			break;
+		}
 		/* donothing for the standby case */
 		copybufferstep();
 		updatevolumes();
 		__asm__("nop");
 	}
+	dprintf(0, "state RECORD\n");
 	while (state == RECORD) {
 		switch (statechange) {
 		case START:
-			statechange = DONE;
+			state = PLAY;
+			/* or maybe */
+			state = OVRDUB;
+			/* until implemented */
+			state = RECORD;
+			statechange = 0;
 			break;
 		case STOP:
 			statechange = 0;
@@ -233,28 +247,36 @@ int main(void)
 			statechange = 0;
 			break;
 		}
-		if (statechange == DONE) break;
+		if (statechange) {
+			statechange = 0;
+			break;
+		}
 		copybufferstepblind();
 		updatevolumes();
 		__asm__("nop");
 	}
+	dprintf(0, "state PLAY\n");
 	while (state == PLAY) {
 		switch (statechange) {
 		case START:
-			statechange = DONE;
+			statechange = 0;
 			break;
 		case STOP:
 			statechange = 0;
 			break;
 		case MENU:
+			state=STANDBY;
+			break;
+		}
+		if (statechange) {
 			statechange = 0;
 			break;
 		}
-		if (statechange == DONE) break;
 		copybufferstepblind();
 		updatevolumes();
 		__asm__("nop");
 	}
+	dprintf(0, "state OVRDUB\n");
 	while (state == OVRDUB) {
 		/* dacbuffer = adcbuffer >> 1 + sdbuffer >> 1; */
 		updatevolumes(); // from time to time...
@@ -352,15 +374,15 @@ void exti15_10_isr(void)
 		exti_reset_request(EXTI11);
 		/* start stomped! */
 		dprintf(0, "start stomped!\n");
-		statechange |= START;
+		statechange = START;
 	}
 	if (exti_get_flag_status(EXTI12)){
 		exti_reset_request(EXTI12);
 		/* stop stomped! */
 		/* consider stopping data transfer */
-		send_codec_cmd(disable);
+		/* send_codec_cmd(disable); */
 		dprintf(0, "stop stomped!\n");
-		statechange |= STOP;
+		statechange = STOP;
 	}
 }
 
@@ -368,8 +390,8 @@ void exti2_isr(void)
 {
 	exti_reset_request(EXTI2);
 	/* menu button pressed */
-	send_codec_cmd(enable);
+	/* send_codec_cmd(enable); */
 	dprintf(0, "menu pressed!\n");
-	statechange |= MENU;
+	statechange = MENU;
 }
 
