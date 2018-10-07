@@ -21,6 +21,7 @@
 #define DMA_H
 #include <libopencm3/stm32/dma.h>
 #include <libopencm3/stm32/rcc.h>
+#include <libopencm3/cm3/nvic.h>
 
 struct dma_channel {
 	uint32_t rcc;
@@ -42,6 +43,8 @@ struct dma_channel {
 	uint8_t periphflwctrl;
 	uint32_t pburst;
 	uint32_t mburst;
+	uint32_t interrupts;
+	uint32_t nvic;
 };
 
 void dma_print_status(struct dma_channel *chan);
