@@ -333,24 +333,27 @@ uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 		ret = EUNKNOWN;
 	}
 	print_response_raw();
-	if (resp == 1) {
-		sdcard.last_status = SDIO_RESP1;
-		print_card_stat();
-	}
 	print_host_stat();
 	/* dprintf(0,"sending command %d returned %s\n", cmd, sdio_error[ret].msg); */
 	if (ret)
 	{
 		if (resp == 3)	// ignore CCRCFAIL for response type R3
 			return 0;
-		if (cmd == 7 && arg != (uint32_t)sdcard.rca << 16) {// CTIMEOUT is a successful deselect of card
+		if (cmd == 7 && arg != (uint32_t)sdcard.rca << 16
+			&& ret == ECTIMEOUT) {// CTIMEOUT is a successful deselect of card
 			sdcard.last_status = 0;
 			return 0;
 		}
 		/* TODO: something's happened. probably want to let the program */
 		/* know instead of blocking it. */
-		dprintf(0, "sending command has returned error. stopping\n");
-		while(1) __asm__("nop");
+		/* dprintf(0, "sending command has returned error. stopping\n"); */
+		int stop = 1;
+		while(stop)
+			__asm__("nop");
+	}
+	if (resp == 1) {
+		sdcard.last_status = SDIO_RESP1;
+		print_card_stat();
 	}
 	return ret;
 }
