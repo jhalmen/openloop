@@ -37,6 +37,7 @@ uint32_t sdio_get_host_pwr(void);
 
 
 void sd_enable_wbus(void);
+void sd_select_card(void);
 
 void print_card_stat(void);
 void print_host_stat(void);

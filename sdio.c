@@ -523,16 +523,17 @@ void sdio_identify(void)
  *  CMD29 and CMD30 generates the ILLEGAL_COMMAND error.
  * */
 
-
-void write_single_block(uint32_t *buffer, uint32_t sd_address)
+void sd_select_card(void)
 {
-	/* TODO maybe check card&host status to be clear to write block? */
-	/* if (SDIO_STA & (SDIO_STA_RXACT | SDIO_STA_TXACT)) */
-	/* 	while (1) {} */
-	// select card
 	if (sdcard.current_state != CARD_STATE_TRAN) {
 		sdio_send_cmd_blocking(7, sdcard.rca << 16);
 	}
+
+}
+
+void write_single_block(uint32_t *buffer, uint32_t sd_address)
+{
+	sd_select_card();
 	sd_dma.direction = DMA_SxCR_DIR_MEM_TO_PERIPHERAL;
 	sd_dma.maddress = (uint32_t)buffer;
 	/* CMD WRITE_SINGLE_BLOCK */
@@ -550,10 +551,7 @@ void write_single_block(uint32_t *buffer, uint32_t sd_address)
 
 void read_status(void)
 {
-	// select card
-	if (sdcard.current_state != CARD_STATE_TRAN) {
-		sdio_send_cmd_blocking(7, sdcard.rca << 16);
-	}
+	sd_select_card();
 	// take care of dma
 	sd_dma.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM;
 	sd_dma.maddress = (uint32_t)sdcard.sdstatus;
@@ -583,17 +581,14 @@ void read_status(void)
 
 void read_scr(void)
 {
-	// select card
-	if (sdcard.current_state != CARD_STATE_TRAN) {
-		sdio_send_cmd_blocking(7, sdcard.rca<<16);
-	}
+	sd_select_card();
 	// take care of dma
 	sd_dma.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM;
 	sd_dma.maddress = (uint32_t)sdcard.scr;
 	dma_channel_init(&sd_dma);
 	// ACMD51
-	sdio_send_cmd_blocking(55, sdcard.rca<<16);
-	sdio_send_cmd_blocking(51, sdcard.rca<<16);
+	sdio_send_cmd_blocking(55, sdcard.rca << 16);
+	sdio_send_cmd_blocking(51, 0);
 	/* timeout : 100ms */
 	SDIO_DTIMER = 2400000;
 	SDIO_DLEN = 8;
@@ -614,18 +609,7 @@ void read_scr(void)
 
 void read_single_block(uint32_t *dest_buffer, uint32_t sd_address)
 {
-	// should be block-aligned
-	// TODO as we apparently don't support standard capacity cards
-	// probably remove this
-	if (!sdcard.high_capacity) {
-		/* TODO if standard capacity, lots of things change */
-		sdio_send_cmd_blocking(16, 512);
-	}
-
-	// select card
-	if ((sdcard.last_status & (4 << 9)) == 0) {
-		sdio_send_cmd_blocking(7, sdcard.rca<<16);
-	}
+	sd_select_card();
 	// take care of dma
 	sd_dma.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM;
 	sd_dma.maddress = (uint32_t)dest_buffer;
@@ -635,16 +619,11 @@ void read_single_block(uint32_t *dest_buffer, uint32_t sd_address)
 	/* timeout : 100ms */
 	SDIO_DTIMER = 2400000;
 	SDIO_DLEN = 512;	// in bytes
-	SDIO_DCTRL = 	(9 << 4)| /* DATA BLOCKSIZE 2^x bytes */ //TODO waaa blocksize
-								// waaa only if this is supposed to
-								// support standard capacity cards as well
+	SDIO_DCTRL = 	(9 << 4)| /* DATA BLOCKSIZE 2^x bytes */
 			(1 << 3)| /* DMA Enable */
 			(0 << 2)| /* DTMODE: Block (0) or Stream (1) */
 			(1 << 1)| /* DTDIR: to controller */
 			(1 << 0); /* DTEN: enable data state machine */
-	/* wait until data is here */
-	/* TODO: do not wait until data transfer complete */
-	while (DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
 }
 
 void erase(uint32_t start, uint32_t nblocks)
@@ -662,10 +641,7 @@ void sd_stop_data_transfer(void)
 
 void sd_enable_wbus(void)
 {
-	// select card
-	if (sdcard.current_state != CARD_STATE_TRAN) {
-		sdio_send_cmd_blocking(7, sdcard.rca<<16);
-	}
+	sd_select_card();
 	sdio_send_cmd_blocking(55, sdcard.rca << 16);
 	sdio_send_cmd_blocking(6, 2);
 	sdio_set_bus_width(SDIO_BUSW_4);
