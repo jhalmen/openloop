@@ -97,7 +97,6 @@ const char *curr_state[] = {
 struct {
 	uint16_t rca;
 	bool sdv2;		// physical spec 2 card?
-	bool high_capacity;
 	uint32_t memcap;	// calculated memory capacity
 	/* uint16_t voltages;	// this is actually just ocr << 15 & 0x1ff */
 	union {
@@ -133,7 +132,26 @@ struct {
 		uint8_t addr_out_of_range:1;
 	};
 	};
+	union {
 	uint32_t ocr;		// operating conditions register
+	struct {
+		uint8_t :7;
+		uint8_t resLV:1;
+		uint8_t :7;
+		uint8_t v27_28:1;
+		uint8_t v28_29:1;
+		uint8_t v29_30:1;
+		uint8_t v30_31:1;
+		uint8_t v31_32:1;
+		uint8_t v32_33:1;
+		uint8_t v33_34:1;
+		uint8_t v34_35:1;
+		uint8_t v35_36:1;
+		uint8_t :6;
+		uint8_t high_capacity:1;
+		uint8_t powerup:1;
+	};
+	};
 	uint32_t csd[4];	// card specific data register
 	uint32_t scr[2];	// sd card configuration register
 	uint32_t sdstatus[16];
