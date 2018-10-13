@@ -94,11 +94,22 @@ const char *curr_state[] = {
 	"reserved", "reserved for I/O"
 };
 
+enum _curr_state {
+	CARD_STATE_IDLE,
+	CARD_STATE_READY,
+	CARD_STATE_IDENT,
+	CARD_STATE_STDBY,
+	CARD_STATE_TRAN,
+	CARD_STATE_DATA,
+	CARD_STATE_RCV,
+	CARD_STATE_PRG,
+	CARD_STATE_DIS
+};
+
 struct {
 	uint16_t rca;
 	bool sdv2;		// physical spec 2 card?
 	uint32_t memcap;	// calculated memory capacity
-	/* uint16_t voltages;	// this is actually just ocr << 15 & 0x1ff */
 	union {
 	uint32_t last_status;	// store for latest R1 response
 	struct {
@@ -110,7 +121,7 @@ struct {
 		uint8_t :1;
 		uint8_t switch_error:1;
 		uint8_t ready_for_data:1;
-		uint8_t current_state:4;
+		enum _curr_state current_state:4;
 		uint8_t erase_reset:1;
 		uint8_t card_ecc_disabled:1;
 		uint8_t wp_erase_skip:1;
@@ -435,20 +446,16 @@ void sdio_identify(void)
 	do {
 		sdio_send_cmd_blocking(55, 0);
 		sdio_send_cmd_blocking(41, 0x40ff8000); // argument needed so that card
-							// knows we support all except low voltages
+		sdcard.ocr = SDIO_RESP1;		// knows we support all except low voltages
 							// and high capacity cards
-	} while (--retries && !(SDIO_RESP1 & 1 << 31));
-	if (!(SDIO_RESP1 & 1 << 31)) {
+	} while (--retries && !(sdcard.powerup));
+	if (!(sdcard.powerup)) {
 		dprintf(0, "SD card not supported!\n");
 		// clear sd struct
 		for (unsigned int i = 0; i < sizeof sdcard; ++i)
 			*((uint8_t*)&sdcard + i) = 0;
 		return;
 	}
-	sdcard.high_capacity = SDIO_RESP1 >> 30 & 0x1;
-	sdcard.ocr = SDIO_RESP1;
-	//clear response received flag
-	//SDIO_ICR |= SDIO_ICR_CMDRENDC;
 
 	//send ALL_SEND_CID (CMD2)
 	//cards send back CIDs and enter identification state
@@ -520,8 +527,10 @@ void sdio_identify(void)
 void write_single_block(uint32_t *buffer, uint32_t sd_address)
 {
 	/* TODO maybe check card&host status to be clear to write block? */
+	/* if (SDIO_STA & (SDIO_STA_RXACT | SDIO_STA_TXACT)) */
+	/* 	while (1) {} */
 	// select card
-	if ((sdcard.last_status & (4 << 9)) == 0) {
+	if (sdcard.current_state != CARD_STATE_TRAN) {
 		sdio_send_cmd_blocking(7, sdcard.rca << 16);
 	}
 	sd_dma.direction = DMA_SxCR_DIR_MEM_TO_PERIPHERAL;
@@ -542,7 +551,7 @@ void write_single_block(uint32_t *buffer, uint32_t sd_address)
 void read_status(void)
 {
 	// select card
-	if ((sdcard.last_status & (4 << 9)) == 0) {
+	if (sdcard.current_state != CARD_STATE_TRAN) {
 		sdio_send_cmd_blocking(7, sdcard.rca << 16);
 	}
 	// take care of dma
@@ -575,7 +584,7 @@ void read_status(void)
 void read_scr(void)
 {
 	// select card
-	if ((sdcard.last_status & (4 << 9)) == 0) {
+	if (sdcard.current_state != CARD_STATE_TRAN) {
 		sdio_send_cmd_blocking(7, sdcard.rca<<16);
 	}
 	// take care of dma
@@ -654,7 +663,7 @@ void sd_stop_data_transfer(void)
 void sd_enable_wbus(void)
 {
 	// select card
-	if ((sdcard.last_status & (4 << 9)) == 0) {
+	if (sdcard.current_state != CARD_STATE_TRAN) {
 		sdio_send_cmd_blocking(7, sdcard.rca<<16);
 	}
 	sdio_send_cmd_blocking(55, sdcard.rca << 16);
