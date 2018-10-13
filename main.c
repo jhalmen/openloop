@@ -23,8 +23,8 @@
 #include <stdlib.h>
 
 
-#define OUTBUFFERSIZE (8192)
-#define INBUFFERSIZE (8192)
+#define OUTBUFFERSIZE	(512)
+#define INBUFFERSIZE	(512)
 
 uint32_t tick = 0;
 
@@ -32,7 +32,11 @@ uint32_t tick = 0;
 int16_t outstream[OUTBUFFERSIZE];
 int16_t instream[INBUFFERSIZE];
 
-uint32_t data[512];
+int16_t *insoutb;
+uint8_t fastenough = 1;
+
+int16_t outblock[256];
+int16_t inblock[256];
 
 /* dma memory location for volume potentiometers */
 uint16_t chanvol[3] = {0,0,0};
@@ -123,6 +127,7 @@ uint16_t vol_low;
 
 void copybufferstep(void);
 void copybufferstepblind(void);
+void copybufferblind(int16_t *dst, int16_t *src);
 
 void updatevolumes(void);
 
@@ -164,6 +169,8 @@ volatile enum {
 	OVRDUB
 } state = STANDBY;
 
+volatile uint32_t *clooook = &SDIO_CLKCR;
+int stopabit = 0;
 int main(void)
 {
 	///////////////////////// INIT STUFF /////////////////////////
@@ -194,14 +201,16 @@ int main(void)
 	buttons_setup();
 	sddetect_setup();
 
-	for (int i = 0; i < 512; ++i)
-		data[i] = 1;
+	send_codec_cmd(enable);
+
 	if (sddetect()) {
 		sdio_periph_setup();
 		read_status();
 		read_scr();
 	}
-	/* while (1) { __asm__("nop"); } */
+	while (stopabit) {
+		__asm__("nop");
+	}
 
 	sound_setup(&f96k);
 
@@ -223,7 +232,8 @@ int main(void)
 			state = PLAY;
 			break;
 		case MENU:
-			statechange = 0;
+			state = RECORD;
+			/* statechange = 0; */
 			break;
 		}
 		if (statechange) {
@@ -247,7 +257,7 @@ int main(void)
 			statechange = 0;
 			break;
 		case STOP:
-			statechange = 0;
+			/* statechange = 0; */
 			break;
 		case MENU:
 			statechange = 0;
@@ -257,6 +267,44 @@ int main(void)
 			statechange = 0;
 			break;
 		}
+		/* ///////////// */
+#define STARTADDRESS	4000
+#define ENDADDRESS	6000
+		static int sdaddress = STARTADDRESS;
+		static int16_t *lastp;
+		static int writing = 1;
+		static int lpcounter = 0;
+		static int bfcounter = 0;
+		if (sdaddress == ENDADDRESS) {
+			state = STANDBY;
+			break;
+		}
+		if (		/* buffer ready */
+			lastp != insoutb
+			&&
+			!fastenough
+			&&
+				/*sd_dma ready*/
+			!(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN)
+		   ) {
+			copybufferblind(outblock, insoutb);
+			fastenough = 1;
+			lastp = insoutb;
+			bfcounter++;
+			writing = 0;
+		}
+		if (	fastenough
+			&&
+				/* SD card done programming */
+			gpio_get(GPIOC, GPIO8)
+			&&
+			!writing
+		   ) {
+			write_single_block(outblock, sdaddress++);
+			writing = 1;
+		}
+		lpcounter++;
+		/* ///////////// */
 		copybufferstepblind();
 		updatevolumes();
 		__asm__("nop");
@@ -278,6 +326,46 @@ int main(void)
 			statechange = 0;
 			break;
 		}
+		/* /1* ///////////// *1/ */
+/* #define STARTADDRESS	6000 */
+/* #define ENDADDRESS	7000 */
+		/* static int sdaddress = STARTADDRESS; */
+		/* static int16_t *lastp; */
+		/* static int writing = 1; */
+		/* static int lpcounter = 0; */
+		/* static int bfcounter = 0; */
+		/* if (sdaddress == ENDADDRESS) { */
+		/* 	state = STANDBY; */
+		/* 	break; */
+		/* } */
+		/* if ( */
+		/* 		/1* buffer ready *1/ */
+		/* 	lastp != insoutb */
+		/* 	&& */
+		/* 	!fastenough */
+		/* 	&& */
+		/* 		/1* sd_dma ready *1/ */
+		/* 	!(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN) */
+		/*    ) { */
+		/* 	copybufferblind(outblock, insoutb); */
+		/* 	fastenough = 1; */
+		/* 	lastp = insoutb; */
+		/* 	bfcounter++; */
+		/* 	writing = 0; */
+		/* } */
+		/* if (	fastenough */
+		/* 	&& */
+		/* 		/1* SD card done programming *1/ */
+		/* 	gpio_get(GPIOC, GPIO8) */
+		/* 	&& */
+		/* 	!writing */
+		/*    ) { */
+		/* 	write_single_block(outblock, sdaddress++); */
+		/* 	writing = 1; */
+		/* } */
+		/* lpcounter++; */
+		/* /1* ///////////// *1/ */
+
 		copybufferstepblind();
 		updatevolumes();
 		__asm__("nop");
@@ -299,7 +387,7 @@ struct copystruct{
 	int16_t *dest;
 	uint32_t dlen;
 	uint32_t d_at;
-	int32_t done;
+	int32_t ncopied;
 	int32_t readylast;
 };
 
@@ -312,23 +400,23 @@ void copybufferstep(void)
 		.dest = outstream,
 		.dlen = OUTBUFFERSIZE,
 		.d_at = 0,
-		.done = 0,
+		.ncopied = 0,
 		.readylast = 0
 	};
 
 	int32_t ready = cs.slen - DMA_SNDTR(audioin.dma, audioin.stream);
 	if (ready < cs.readylast) {
 		/* dprintf(2, "ready wrapped around\n"); */
-		cs.done -= cs.slen;
+		cs.ncopied -= cs.slen;
 	}
 	cs.readylast = ready;
-	/* dprintf(2, "d=%d, r=%d  ", cs.done, ready); */
-	if (cs.done >= ready) {
-		/* dprintf(2, "done early\n"); */
+	/* dprintf(2, "d=%d, r=%d  ", cs.ncopied, ready); */
+	if (cs.ncopied >= ready) {
+		/* dprintf(2, "ncopied early\n"); */
 		return;
 	}
-	/* dprintf(2, "copying %d nod\n", ready-cs.done); */
-	for (; cs.done <= ready; ++cs.done) {
+	/* dprintf(2, "copying %d nod\n", ready-cs.ncopied); */
+	for (; cs.ncopied <= ready; ++cs.ncopied) {
 		/* TODO check for off by one */
 		cs.dest[cs.d_at++] = cs.source[cs.s_at++];
 		if (cs.d_at == cs.dlen) cs.d_at = 0;
@@ -344,6 +432,12 @@ void copybufferstepblind(void)
 	if (outp == OUTBUFFERSIZE) outp = 0;
 	outstream[outp++] = instream[inp++];
 	outstream[outp++] = instream[inp++];
+}
+
+void copybufferblind(int16_t *dst, int16_t *src)
+{
+	for (int i = 0; i < 256; ++i)
+		dst[i] = src[i];
 }
 
 void updatevolumes(void)
@@ -406,9 +500,23 @@ void dma1_stream3_isr(void)
 	if (dma_get_interrupt_flag(DMA1, DMA_STREAM3, DMA_HTIF)) {
 		dma_clear_interrupt_flags(DMA1, DMA_STREAM3, DMA_HTIF);
 		/* audioin transfer half complete */
+		insoutb = instream;
+		if (state == RECORD && !fastenough) {
+			while(1)
+				__asm__("nop");
+		} else {
+			fastenough = 0;
+		}
 	}
 	if (dma_get_interrupt_flag(DMA1, DMA_STREAM3, DMA_TCIF)) {
 		dma_clear_interrupt_flags(DMA1, DMA_STREAM3, DMA_TCIF);
 		/* audioin transfer complete */
+		insoutb = instream + 256;
+		if (state == RECORD && !fastenough) {
+			while (1)
+				__asm__("nop");
+		} else {
+			fastenough = 0;
+		}
 	}
 }
