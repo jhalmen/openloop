@@ -35,6 +35,9 @@ uint32_t sdio_get_card_status(void);
 uint32_t sdio_get_host_clkcr(void);
 uint32_t sdio_get_host_pwr(void);
 
+
+void sd_enable_wbus(void);
+
 void print_card_stat(void);
 void print_host_stat(void);
 void print_response_raw(void);

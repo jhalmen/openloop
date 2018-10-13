@@ -371,6 +371,8 @@ void sdio_periph_setup(void)
 	/* identify card, to be able to use it after */
 	sdio_identify();
 
+	sd_enable_wbus();
+
 	/* speed up communication */
 	/* sdio_set_clk_div(2); //logic analyzer speed */
 	sdio_set_clk_div(0); //max speed
