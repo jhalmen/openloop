@@ -178,8 +178,6 @@ struct {
 	{EUNKNOWN,	"UNKNOWN"}
 };
 
-void sd_enable_wbus(void);
-
 uint32_t sdio_get_host_pwr()
 {
 	return SDIO_POWER;
@@ -446,9 +444,6 @@ void sdio_identify(void)
 	sdcard.csd[3] = SDIO_RESP4;
 	parse_csd();
 
-	sd_enable_wbus();
-
-	// TODO: probably return something to caller in this or in error case
 }
 
 /*
