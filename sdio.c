@@ -23,6 +23,7 @@
 /* this driver supports Physical Layer Version 2.00 and High Capacity SD Memory Cards */
 /* high voltage cards only */
 
+#define dprintf(...)
 #define byte_swap(word) \
 	__asm__("rev %[swap], %[swap]" : [swap] "=r" (word) : "0" (word));
 const char *sdiohoststat[] = {

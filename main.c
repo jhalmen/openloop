@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#define dprintf(...)
 #include "hardware.h"
 #include "wm8778.h"
 #include "swo.h"
@@ -169,7 +170,10 @@ int main(void)
 	pll_setup();
 	systick_setup(1);
 	/* enable_swo(115200); */
-	enable_swo(230400);
+
+/////////
+//	enable_swo(230400);
+////////
 	/* enable_swo(2250000); */
 
 	i2c_setup();

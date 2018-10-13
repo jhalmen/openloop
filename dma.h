@@ -22,6 +22,7 @@
 #include <libopencm3/stm32/dma.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/cm3/nvic.h>
+#define dprintf(...)
 
 struct dma_channel {
 	uint32_t rcc;
