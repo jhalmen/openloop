@@ -100,8 +100,39 @@ struct {
 	bool high_capacity;
 	uint32_t memcap;	// calculated memory capacity
 	/* uint16_t voltages;	// this is actually just ocr << 15 & 0x1ff */
+	union {
 	uint32_t last_status;	// store for latest R1 response
-
+	struct {
+		uint8_t :2;
+		uint8_t :1;
+		uint8_t ake_seq_error:1;
+		uint8_t :1;
+		uint8_t app_cmd:1;
+		uint8_t :1;
+		uint8_t switch_error:1;
+		uint8_t ready_for_data:1;
+		uint8_t current_state:4;
+		uint8_t erase_reset:1;
+		uint8_t card_ecc_disabled:1;
+		uint8_t wp_erase_skip:1;
+		uint8_t cid_csd_overwrite:1;
+		uint8_t :1;
+		uint8_t :1;
+		uint8_t error:1;
+		uint8_t cc_error:1;
+		uint8_t card_ecc_failed:1;
+		uint8_t illegal_command:1;
+		uint8_t com_crc_error:1;
+		uint8_t lock_unlock_failed:1;
+		uint8_t card_is_locked:1;
+		uint8_t wp_violation:1;
+		uint8_t erase_param:1;
+		uint8_t erase_seq_error:1;
+		uint8_t block_len_error:1;
+		uint8_t addr_misalign:1;
+		uint8_t addr_out_of_range:1;
+	};
+	};
 	uint32_t ocr;		// operating conditions register
 	uint32_t csd[4];	// card specific data register
 	uint32_t scr[2];	// sd card configuration register
