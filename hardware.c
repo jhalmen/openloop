@@ -349,14 +349,15 @@ void sdio_periph_setup(void)
 	gpio_set_output_options(GPIOD, GPIO_OTYPE_PP,
 			GPIO_OSPEED_50MHZ, GPIO2);
 	gpio_mode_setup(GPIOD, GPIO_MODE_AF,
-			GPIO_PUPD_NONE, GPIO2);
+			GPIO_PUPD_PULLUP, GPIO2);
 	/* SDIO_CLK, DAT*/
 	rcc_periph_clock_enable(RCC_GPIOC);
 	gpio_set_af(GPIOC, GPIO_AF12, GPIO8 | GPIO9 | GPIO10 | GPIO11 | GPIO12);
 	gpio_set_output_options(GPIOC, GPIO_OTYPE_PP,
 			GPIO_OSPEED_50MHZ, GPIO8 | GPIO9 | GPIO10 | GPIO11 | GPIO12);
-	gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_NONE,
-				GPIO8 | GPIO9 | GPIO10 | GPIO11 | GPIO12);
+	gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_PULLUP,
+				GPIO8 | GPIO9 | GPIO10 | GPIO11);
+	gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_PULLDOWN, GPIO12);
 	/* take care of sdio configuration */
 	rcc_periph_reset_pulse(RCC_SDIO);
 	rcc_periph_clock_enable(RCC_SDIO);
