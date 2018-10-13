@@ -182,8 +182,23 @@ static struct dma_channel sd_dma = {
 	.periphflwctrl = 1,
 	.pburst = DMA_SxCR_PBURST_INCR4,
 	.mburst = DMA_SxCR_MBURST_SINGLE,
-	.numberofdata = 0
+	.numberofdata = 0/*,
+	.interrupts = DMA_SxCR_TCIE,
+	.nvic =  NVIC_DMA2_STREAM3_IRQ*/
 };
+
+void dma2_stream3_isr(void)
+{
+	if (dma_get_interrupt_flag(DMA2, DMA_STREAM3, DMA_TCIF)) {
+		dma_clear_interrupt_flags(DMA2, DMA_STREAM3, DMA_TCIF);
+		if (SDIO_STA & SDIO_STA_DBCKEND) {
+			dprintf(1, "doo\n");
+		} else {
+			dprintf(1, "nodoo yet\n");
+		}
+		/* dostuff */
+	}
+}
 
 struct {
 	uint8_t err;
