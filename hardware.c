@@ -359,7 +359,7 @@ void sdio_periph_setup(void)
 				GPIO8 | GPIO9 | GPIO10 | GPIO11);
 	gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_PULLDOWN, GPIO12);
 	/* take care of sdio configuration */
-	rcc_periph_reset_pulse(RCC_SDIO);
+	rcc_periph_clock_disable(RCC_SDIO);
 	rcc_periph_clock_enable(RCC_SDIO);
 
 	//sdio_enable_hw_flow_control(); /* device limitation on stm32f401 do not use */
