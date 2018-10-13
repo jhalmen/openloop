@@ -297,17 +297,17 @@ uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 void print_card_stat(void)
 {
 	uint32_t resp = sdio_get_resp(1);
-	printf("CARD STATUS: #################\n");
+	dprintf(1,"CARD STATUS: #################\n");
 	/* print out what every bit means */
 	for (int i = 0; i < 32; ++i) {
 		if (i >= 9 && i <= 12) {  // 4bit field
-			printf("##[%2ld] state: %s\n",
+			dprintf(1,"##[%2ld] state: %s\n",
 					(resp >> 9) & 0xf,
 					curr_state[(resp >> 9) & 0xf]);
 			i = 12;
 		}
 		else if (resp & (1 << i)) {
-			printf("##[%2d] %s\n", i,cardstat[i]);
+			dprintf(1,"##[%2d] %s\n", i,cardstat[i]);
 		}
 	}
 }
@@ -316,14 +316,15 @@ void print_host_stat(void)
 {
 	uint32_t st = SDIO_STA;
 	for (int i = 0; i < 24; ++i)
-		if(st & 1<<i)
-			printf("[%2d]%s ", i, sdiohoststat[i]);
-	printf("\n");
+		if(st & 1<<i) {
+			dprintf(1,"[%2d]%s ", i, sdiohoststat[i]);
+		}
+	dprintf(1,"\n");
 }
 
 void print_response_raw(void)
 {
-	printf("RESPONSE: %08lx %08lx %08lx %08lx\n",
+	dprintf(1,"RESPONSE: %08lx %08lx %08lx %08lx\n",
 			SDIO_RESP1, SDIO_RESP2, SDIO_RESP3, SDIO_RESP4);
 }
 
