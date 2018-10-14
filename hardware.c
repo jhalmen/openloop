@@ -255,7 +255,7 @@ void adc_setup(void)
 	adc_set_sample_time_on_all_channels(ADC1, ADC_SMPR_SMP_480CYC);
 	adc_set_right_aligned(ADC1);
 	adc_enable_scan_mode(ADC1);
-	adc_set_continuous_conversion_mode(ADC1);
+	/* adc_set_continuous_conversion_mode(ADC1); */
 	uint8_t channels[3] = {5,6,7};
 	adc_set_regular_sequence(ADC1, 3, channels);
 

@@ -102,7 +102,9 @@ struct dma_channel volumes = {
 	.prio = DMA_SxCR_PL_LOW,
 	.pburst = DMA_SxCR_PBURST_SINGLE,
 	.periphflwctrl = 0,
-	.numberofdata = 3
+	.numberofdata = 3,
+	.interrupts = DMA_SxCR_TCIE,
+	.nvic = NVIC_DMA2_STREAM0_IRQ
 };
 
 struct i2sfreq f96k = {
@@ -128,8 +130,6 @@ uint16_t vol_low;
 void copybufferstep(void);
 void copybufferstepblind(void);
 void copybufferblind(int16_t *dst, int16_t *src);
-
-void updatevolumes(void);
 
 void printfifocnt(void);
 void printfifo(void);
@@ -175,7 +175,7 @@ int main(void)
 {
 	///////////////////////// INIT STUFF /////////////////////////
 	pll_setup();
-	systick_setup(1);
+	systick_setup(5);
 	/* enable_swo(115200); */
 
 /////////
@@ -242,7 +242,6 @@ int main(void)
 		}
 		/* donothing for the standby case */
 		copybufferstep();
-		updatevolumes();
 		__asm__("nop");
 	}
 	dprintf(0, "state RECORD\n");
@@ -306,7 +305,6 @@ int main(void)
 		lpcounter++;
 		/* ///////////// */
 		copybufferstepblind();
-		updatevolumes();
 		__asm__("nop");
 	}
 	dprintf(0, "state PLAY\n");
@@ -367,13 +365,11 @@ int main(void)
 		/* /1* ///////////// *1/ */
 
 		copybufferstepblind();
-		updatevolumes();
 		__asm__("nop");
 	}
 	dprintf(0, "state OVRDUB\n");
 	while (state == OVRDUB) {
 		/* dacbuffer = adcbuffer >> 1 + sdbuffer >> 1; */
-		updatevolumes(); // from time to time...
 		__asm__("nop");
 	}
 	}
@@ -440,24 +436,24 @@ void copybufferblind(int16_t *dst, int16_t *src)
 		dst[i] = src[i];
 }
 
-void updatevolumes(void)
+void dma2_stream0_isr(void)
 {
+	if (!dma_get_interrupt_flag(DMA2, DMA_STREAM0, DMA_TCIF))
+		return;
+	dma_clear_interrupt_flags(DMA2, DMA_STREAM0, DMA_TCIF);
 	static uint16_t oldvol[3] = {0,0,0};
 	/* input gains and output volume */
-	if ((abs(oldvol[2] - chanvol[2]) > 10) &&
-		((chanvol[2] >> 2) != (oldvol[2] >> 2))) {
+	if (chanvol[2] >> 2 != oldvol[2] >> 2) {
 		send_codec_cmd(MASTDA(chanvol[2] >> 2,1));
 		oldvol[2] = chanvol[2];
 	}
 	/* uncomment this after soldering potis */
 	/* TODO check to use PGA here */
-	/* if ((abs(oldvol[1] - chanvol[1]) > 10) && */
-	/* 	((chanvol[1] >> 2) != (oldvol[1] >> 2))) { */
+	/* if (chanvol[1] >> 2 != oldvol[1] >> 2) { */
 	/* 	send_codec_cmd(ADCR(chanvol[1] >> 2,1)); */
 	/* 	oldvol[1] = chanvol[1]; */
 	/* } */
-	/* if ((abs(oldvol[0] - chanvol[0]) > 10) && */
-	/* 	((chanvol[0] >> 2) != (oldvol[0] >> 2))) { */
+	/* if (chanvol[0] >> 2 != oldvol[0] >> 2) { */
 	/* 	send_codec_cmd(ADCL(chanvol[0] >> 2,1)); */
 	/* 	oldvol[0] = chanvol[0]; */
 	/* } */
@@ -466,6 +462,7 @@ void updatevolumes(void)
 void sys_tick_handler(void)
 {
 	++tick;
+	adc_start_conversion_regular(ADC1);
 }
 
 void exti15_10_isr(void)
