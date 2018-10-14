@@ -387,6 +387,12 @@ struct copystruct{
 	int32_t readylast;
 };
 
+struct {
+	uint32_t earlyout;
+	uint32_t through;
+	uint32_t amount;
+} d = {0,0, 0};
+
 void copybufferstep(void)
 {
 	static struct copystruct cs = {
@@ -408,9 +414,12 @@ void copybufferstep(void)
 	cs.readylast = ready;
 	/* dprintf(2, "d=%d, r=%d  ", cs.ncopied, ready); */
 	if (cs.ncopied >= ready) {
+		d.earlyout++;
 		/* dprintf(2, "ncopied early\n"); */
 		return;
 	}
+	d.through++;
+	d.amount = ready - cs.ncopied;
 	/* dprintf(2, "copying %d nod\n", ready-cs.ncopied); */
 	for (; cs.ncopied <= ready; ++cs.ncopied) {
 		/* TODO check for off by one */
