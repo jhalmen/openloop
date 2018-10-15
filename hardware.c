@@ -279,8 +279,7 @@ void sound_setup(struct i2sfreq * f)
 	plli2s_setup(f->plln, f->pllr);
 	i2s_init_slave_receive(I2S2ext);
 	i2s_init_master_transmit(I2S2, f->div, f->odd, 1);
-	spi_enable_rx_dma(I2S2ext);
-	spi_enable_tx_dma(I2S2);
+	nvic_enable_irq(NVIC_SPI2_IRQ);
 	/* slave has to be enabled before the master! */
 	i2s_enable(I2S2ext);
 	i2s_enable(I2S2);

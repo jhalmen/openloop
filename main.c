@@ -22,68 +22,11 @@
 #include "swo.h"
 #include <stdlib.h>
 
-
-#define OUTBUFFERSIZE	(512)
-#define INBUFFERSIZE	(512)
-
 uint32_t tick = 0;
-
-/* dma memory locations for sound in */
-int16_t outstream[OUTBUFFERSIZE];
-int16_t instream[INBUFFERSIZE];
-
-int16_t *insoutb;
-uint8_t fastenough = 1;
-
-int16_t outblock[256];
-int16_t inblock[256];
 
 /* dma memory location for volume potentiometers */
 uint16_t chanvol[3] = {0,0,0};
 
-struct dma_channel audioout = {
-	.rcc = RCC_DMA1,
-	.dma = DMA1,
-	.stream = DMA_STREAM4,
-	.direction = DMA_SxCR_DIR_MEM_TO_PERIPHERAL,
-	.channel = DMA_SxCR_CHSEL_0,
-	.psize = DMA_SxCR_PSIZE_16BIT,
-	.paddress = (uint32_t)&SPI_DR(I2S2),
-	.msize = DMA_SxCR_MSIZE_16BIT,
-	.maddress = (uint32_t)outstream,
-	.doublebuf = 0,
-	.minc = 1,
-	.circ = 1,
-	.pinc = 0,
-	.prio = DMA_SxCR_PL_HIGH,
-	.pburst = DMA_SxCR_PBURST_SINGLE,
-	.periphflwctrl = 0,
-	.numberofdata = OUTBUFFERSIZE
-};
-
-struct dma_channel audioin = {
-	.rcc = RCC_DMA1,
-	.dma = DMA1,
-	.stream = DMA_STREAM3,
-	.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM,
-	.channel = DMA_SxCR_CHSEL_3,
-	.psize = DMA_SxCR_PSIZE_16BIT,
-	.paddress = (uint32_t)&SPI_DR(I2S2ext),
-	.msize = DMA_SxCR_MSIZE_16BIT,
-	.maddress = (uint32_t)instream,
-	.doublebuf = 0,
-	.minc = 1,
-	.circ = 1,
-	.pinc = 0,
-	.prio = DMA_SxCR_PL_HIGH,
-	.periphflwctrl = 0,
-	.pburst = DMA_SxCR_PBURST_SINGLE,
-	/* TODO consider bursting memory sides of audio DMAs */
-	/* .mburst = DMA_SxCR_MBURST_ */
-	.numberofdata = INBUFFERSIZE,
-	.interrupts = DMA_SxCR_TCIE | DMA_SxCR_HTIE,
-	.nvic =  NVIC_DMA1_STREAM3_IRQ
-};
 
 struct dma_channel volumes = {
 	.rcc = RCC_DMA2,
@@ -126,48 +69,83 @@ uint16_t enable;
 uint16_t vol_full;
 uint16_t vol_low;
 
-
-void copybufferstep(void);
-void copybufferstepblind(void);
-void copybufferblind(int16_t *dst, int16_t *src);
-
-void printfifocnt(void);
-void printfifo(void);
-void printdcount(void);
-void printfifocnt(void)
-{
-	printf("fifocount: %ld\n", SDIO_FIFOCNT);
-}
-void printfifo(void)
-{
-	printf("fifo: ");
-	while (SDIO_STA & SDIO_STA_RXDAVL) {
-		printf("gotit");
-		printf("%08lx ", SDIO_FIFO);
-	}
-	printf("\n");
-}
-void printdcount(void)
-{
-	if ((SDIO_STA & SDIO_STA_RXACT) ||
-	   (SDIO_STA & SDIO_STA_TXACT)) {
-		printf("dcount: n/a\n");
-	} else {
-		printf("dcount: %ld\n", SDIO_DCOUNT);
-	}
-}
-
 enum {
 	START = 1,
 	STOP = 2,
 	MENU = 4
 } statechange = 0;
+
 volatile enum {
-	STANDBY,
-	RECORD,
-	PLAY,
-	OVRDUB
+	STANDBY = 0,
+	RECORD = 1,
+	PLAY = 2,
+	OVRDUB = 3
 } state = STANDBY;
+
+volatile struct _loop {
+	uint32_t start;
+	uint32_t len;
+	uint32_t end_idx;
+	uint8_t has_undo:1;
+	uint8_t has_redo:1;
+} loop;
+
+volatile struct _sd {
+	uint32_t addr;
+	int16_t buffer[512];
+	uint16_t idx;
+	uint16_t prvidx;
+	uint8_t xferlow:1;
+	uint8_t xferhigh:1;
+} sdin;
+
+int16_t get_sample(void)
+{
+	return sdin.buffer[sdin.idx++];
+}
+
+void buffer_init()
+{
+	sdin.addr = 4000;
+	sdin.prvidx = -1;
+	sdin.idx = 0;
+	sdin.xferlow = 1;
+}
+
+void handle_buffer(void) {
+	static int16_t *b = sdin.buffer;
+	if (sdin.addr == 6000) {
+		state = STANDBY;
+		buffer_init();
+	}
+	if (sdin.prvidx != sdin.idx) {
+	if (sdin.idx == 512) sdin.idx = 0;
+	if (sdin.idx == 0) {
+		sdin.xferhigh = 1;
+		b = sdin.buffer + 256;
+	}
+	if (sdin.idx == 256) {
+		sdin.xferlow = 1;
+		b = sdin.buffer;
+	}
+	if ((sdin.xferlow | sdin.xferhigh) && !(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN)
+		&& gpio_get(GPIOC, GPIO8)){
+		read_single_block(b, sdin.addr++);
+		if (sdin.xferlow) {
+			sdin.xferlow = 0;
+		} else {
+			sdin.xferhigh = 0;
+		}
+		/* if (sdin.idx == -1) {	// initial samples */
+		/* 	sdin.idx = 0; */
+		/* } */
+	}
+	sdin.prvidx = sdin.idx;
+	}
+}
+
+
+void startaudio(void);
 
 volatile uint32_t *clooook = &SDIO_CLKCR;
 int stopabit = 0;
@@ -187,12 +165,12 @@ int main(void)
 
 	/* configure codec */
 	disable = DAC_C1(0, 0, 0, 0, 0b0000);
-	enable = DAC_C1(0, 0, 0, 0, 0b1001);
+	enable = DAC_C1(0, 0, 0, 0, 0b1000);
 	vol_full = MASTDA(255, 1);
 	vol_low = MASTDA(222,1);
 
-	dma_channel_init(&audioin);
-	dma_channel_init(&audioout);
+	/* dma_channel_init(&audioin); */
+	/* dma_channel_init(&audioout); */
 
 	dma_channel_init(&volumes);
 
@@ -213,236 +191,15 @@ int main(void)
 	}
 
 	sound_setup(&f96k);
+	startaudio();
+	buffer_init();
 
 	///////////////////////// LOOP STUFF /////////////////////////
 	while (1) {
-	dprintf(0, "state STANDBY\n");
-	while (state == STANDBY) {
-		switch (statechange) {
-		case START:
-			/* if previous recording available */
-			state = PLAY;
-			/* else */
-			state = RECORD;
-			/* until implemented */
-			state = STANDBY;
-			statechange = 0;
-			break;
-		case STOP:
-			state = PLAY;
-			break;
-		case MENU:
-			state = RECORD;
-			/* statechange = 0; */
-			break;
-		}
-		if (statechange) {
-			statechange = 0;
-			break;
-		}
-		/* donothing for the standby case */
-		copybufferstep();
+		handle_buffer();
 		__asm__("nop");
-	}
-	dprintf(0, "state RECORD\n");
-	while (state == RECORD) {
-		switch (statechange) {
-		case START:
-			state = PLAY;
-			/* or maybe */
-			state = OVRDUB;
-			/* until implemented */
-			state = RECORD;
-			statechange = 0;
-			break;
-		case STOP:
-			/* statechange = 0; */
-			break;
-		case MENU:
-			statechange = 0;
-			break;
-		}
-		if (statechange) {
-			statechange = 0;
-			break;
-		}
-		/* ///////////// */
-#define STARTADDRESS	4000
-#define ENDADDRESS	6000
-		static int sdaddress = STARTADDRESS;
-		static int16_t *lastp;
-		static int writing = 1;
-		static int lpcounter = 0;
-		static int bfcounter = 0;
-		if (sdaddress == ENDADDRESS) {
-			state = STANDBY;
-			break;
-		}
-		if (		/* buffer ready */
-			lastp != insoutb
-			&&
-			!fastenough
-			&&
-				/*sd_dma ready*/
-			!(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN)
-		   ) {
-			copybufferblind(outblock, insoutb);
-			fastenough = 1;
-			lastp = insoutb;
-			bfcounter++;
-			writing = 0;
-		}
-		if (	fastenough
-			&&
-				/* SD card done programming */
-			gpio_get(GPIOC, GPIO8)
-			&&
-			!writing
-		   ) {
-			write_single_block(outblock, sdaddress++);
-			writing = 1;
-		}
-		lpcounter++;
-		/* ///////////// */
-		copybufferstepblind();
-		__asm__("nop");
-	}
-	dprintf(0, "state PLAY\n");
-	while (state == PLAY) {
-		switch (statechange) {
-		case START:
-			statechange = 0;
-			break;
-		case STOP:
-			statechange = 0;
-			break;
-		case MENU:
-			state=STANDBY;
-			break;
-		}
-		if (statechange) {
-			statechange = 0;
-			break;
-		}
-		/* /1* ///////////// *1/ */
-/* #define STARTADDRESS	6000 */
-/* #define ENDADDRESS	7000 */
-		/* static int sdaddress = STARTADDRESS; */
-		/* static int16_t *lastp; */
-		/* static int writing = 1; */
-		/* static int lpcounter = 0; */
-		/* static int bfcounter = 0; */
-		/* if (sdaddress == ENDADDRESS) { */
-		/* 	state = STANDBY; */
-		/* 	break; */
-		/* } */
-		/* if ( */
-		/* 		/1* buffer ready *1/ */
-		/* 	lastp != insoutb */
-		/* 	&& */
-		/* 	!fastenough */
-		/* 	&& */
-		/* 		/1* sd_dma ready *1/ */
-		/* 	!(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN) */
-		/*    ) { */
-		/* 	copybufferblind(outblock, insoutb); */
-		/* 	fastenough = 1; */
-		/* 	lastp = insoutb; */
-		/* 	bfcounter++; */
-		/* 	writing = 0; */
-		/* } */
-		/* if (	fastenough */
-		/* 	&& */
-		/* 		/1* SD card done programming *1/ */
-		/* 	gpio_get(GPIOC, GPIO8) */
-		/* 	&& */
-		/* 	!writing */
-		/*    ) { */
-		/* 	write_single_block(outblock, sdaddress++); */
-		/* 	writing = 1; */
-		/* } */
-		/* lpcounter++; */
-		/* /1* ///////////// *1/ */
-
-		copybufferstepblind();
-		__asm__("nop");
-	}
-	dprintf(0, "state OVRDUB\n");
-	while (state == OVRDUB) {
-		/* dacbuffer = adcbuffer >> 1 + sdbuffer >> 1; */
-		__asm__("nop");
-	}
 	}
 	return 0;
-}
-
-struct copystruct{
-	int16_t *source;
-	uint32_t slen;
-	uint32_t s_at;
-	int16_t *dest;
-	uint32_t dlen;
-	uint32_t d_at;
-	int32_t ncopied;
-	int32_t readylast;
-};
-
-struct {
-	uint32_t earlyout;
-	uint32_t through;
-	uint32_t amount;
-} d = {0,0, 0};
-
-void copybufferstep(void)
-{
-	static struct copystruct cs = {
-		.source = instream,
-		.slen = INBUFFERSIZE,
-		.s_at = 0,
-		.dest = outstream,
-		.dlen = OUTBUFFERSIZE,
-		.d_at = 0,
-		.ncopied = 0,
-		.readylast = 0
-	};
-
-	int32_t ready = cs.slen - DMA_SNDTR(audioin.dma, audioin.stream);
-	if (ready < cs.readylast) {
-		/* dprintf(2, "ready wrapped around\n"); */
-		cs.ncopied -= cs.slen;
-	}
-	cs.readylast = ready;
-	/* dprintf(2, "d=%d, r=%d  ", cs.ncopied, ready); */
-	if (cs.ncopied >= ready) {
-		d.earlyout++;
-		/* dprintf(2, "ncopied early\n"); */
-		return;
-	}
-	d.through++;
-	d.amount = ready - cs.ncopied;
-	/* dprintf(2, "copying %d nod\n", ready-cs.ncopied); */
-	for (; cs.ncopied <= ready; ++cs.ncopied) {
-		/* TODO check for off by one */
-		cs.dest[cs.d_at++] = cs.source[cs.s_at++];
-		if (cs.d_at == cs.dlen) cs.d_at = 0;
-		if (cs.s_at == cs.slen) cs.s_at = 0;
-	}
-}
-
-void copybufferstepblind(void)
-{
-	/* TODO check this is fast enough using e.g. oscilloscope */
-	static int inp = 0, outp = 0;
-	if (inp == INBUFFERSIZE) inp = 0;
-	if (outp == OUTBUFFERSIZE) outp = 0;
-	outstream[outp++] = instream[inp++];
-	outstream[outp++] = instream[inp++];
-}
-
-void copybufferblind(int16_t *dst, int16_t *src)
-{
-	for (int i = 0; i < 256; ++i)
-		dst[i] = src[i];
 }
 
 void dma2_stream0_isr(void)
@@ -452,19 +209,22 @@ void dma2_stream0_isr(void)
 	dma_clear_interrupt_flags(DMA2, DMA_STREAM0, DMA_TCIF);
 	static uint16_t oldvol[3] = {0,0,0};
 	/* input gains and output volume */
-	if (chanvol[2] >> 2 != oldvol[2] >> 2) {
+	if ((chanvol[2] - oldvol[2] > 5) ||
+		(oldvol[2] - chanvol[2] > 5)) {
 		send_codec_cmd(MASTDA(chanvol[2] >> 2,1));
-		oldvol[2] = chanvol[2];
+		oldvol[2] = (chanvol[2] >> 2) << 2;
 	}
 	/* uncomment this after soldering potis */
 	/* TODO check to use PGA here */
-	/* if (chanvol[1] >> 2 != oldvol[1] >> 2) { */
+	/* if ((chanvol[1] - oldvol[1] > 5) || */
+	/* 	(oldvol[1] - chanvol[1] > 5)) { */
 	/* 	send_codec_cmd(ADCR(chanvol[1] >> 2,1)); */
-	/* 	oldvol[1] = chanvol[1]; */
+	/* 	oldvol[1] = (chanvol[1] >> 2) << 2; */
 	/* } */
-	/* if (chanvol[0] >> 2 != oldvol[0] >> 2) { */
+	/* if ((chanvol[0] - oldvol[0] > 5) || */
+	/* 	(oldvol[0] - chanvol[0] > 5)) { */
 	/* 	send_codec_cmd(ADCL(chanvol[0] >> 2,1)); */
-	/* 	oldvol[0] = chanvol[0]; */
+	/* 	oldvol[0] = (chanvol[0] >> 2) << 2; */
 	/* } */
 }
 
@@ -491,6 +251,7 @@ void exti15_10_isr(void)
 		statechange = STOP;
 	}
 }
+uint8_t enableplayback = 0;
 
 void exti2_isr(void)
 {
@@ -498,31 +259,77 @@ void exti2_isr(void)
 	/* menu button pressed */
 	/* send_codec_cmd(enable); */
 	dprintf(0, "menu pressed!\n");
-	statechange = MENU;
+	/* statechange = MENU; */
+	if (state & PLAY) {
+		state &= 2;
+	} else {
+		enableplayback = 1;
+	}
 }
 
-void dma1_stream3_isr(void)
+void put_sample(int16_t sample)
 {
-	if (dma_get_interrupt_flag(DMA1, DMA_STREAM3, DMA_HTIF)) {
-		dma_clear_interrupt_flags(DMA1, DMA_STREAM3, DMA_HTIF);
-		/* audioin transfer half complete */
-		insoutb = instream;
-		if (state == RECORD && !fastenough) {
-			while(1)
-				__asm__("nop");
+	static int16_t buffer[512];
+	static int16_t *b;
+	static int16_t idx = 0;
+	static uint8_t dowrite = 0;
+	if (idx == 512) idx = 0;
+
+	buffer[idx++] = sample;
+	if (!(idx % 256)) {
+		/* write buffer out */
+		b = buffer + 256*((idx-1)/256);
+		dowrite = 1;
+	}
+	if (dowrite && !(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN)
+			&& gpio_get(GPIOC,GPIO8)) {
+		write_single_block(b, 0);// sdaddress++);
+		dowrite = 0;
+	}
+}
+
+void startaudio(void)
+{
+	spi_enable_rx_buffer_not_empty_interrupt(I2S2ext);
+	spi_enable_tx_buffer_empty_interrupt(I2S2);
+}
+
+volatile uint32_t *spi = &SPI_SR(I2S2);
+volatile uint32_t *ext = &SPI_SR(I2S2ext);
+
+void spi2_isr(void)
+{
+	static int16_t ldata = 0, rdata = 0;
+	// tx
+	uint32_t sr = SPI_SR(I2S2);
+	if (sr & (SPI_SR_UDR | SPI_SR_OVR))
+		while (sr) {__asm__("nop");}	// i2s error! should never happen!
+	if (sr & SPI_SR_TXE) {			// i2s needs data
+		if (sr & SPI_SR_CHSIDE) {
+			SPI_DR(I2S2) = rdata;
 		} else {
-			fastenough = 0;
+			SPI_DR(I2S2) = ldata;
 		}
 	}
-	if (dma_get_interrupt_flag(DMA1, DMA_STREAM3, DMA_TCIF)) {
-		dma_clear_interrupt_flags(DMA1, DMA_STREAM3, DMA_TCIF);
-		/* audioin transfer complete */
-		insoutb = instream + 256;
-		if (state == RECORD && !fastenough) {
-			while (1)
-				__asm__("nop");
+	// rx
+	sr = SPI_SR(I2S2ext);
+	if (sr & (SPI_SR_UDR | SPI_SR_OVR))
+		while (sr) {__asm__("nop");}	// i2s error! should never happen!
+	if (sr & SPI_SR_RXNE) {			// i2s has data
+		int16_t audio = SPI_DR(I2S2ext);
+		if (enableplayback && !(sr & SPI_SR_CHSIDE)) {
+			state |= PLAY;
+			enableplayback = 0;
+		}
+		if (state & PLAY)
+			/* audio = (audio >> 1) + (get_sample() >> 1); */
+			audio = get_sample();
+		if (state & RECORD)
+			put_sample(audio);
+		if (sr & SPI_SR_CHSIDE) {
+			rdata = audio;
 		} else {
-			fastenough = 0;
+			ldata = audio;
 		}
 	}
 }
