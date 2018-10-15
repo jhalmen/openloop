@@ -76,11 +76,11 @@ void dma_channel_init(struct dma_channel *chan)
 	if (!chan->periphflwctrl) {
 		dma_set_number_of_data(chan->dma, chan->stream, chan->numberofdata);
 	}
-	dma_channel_enable(chan);
 	if (chan->interrupts) {
 		nvic_enable_irq(chan->nvic);
 		DMA_SCR(chan->dma, chan->stream) |= chan->interrupts;
 	}
+	dma_channel_enable(chan);
 }
 
 void dma_channel_enable(struct dma_channel *chan)
