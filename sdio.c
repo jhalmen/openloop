@@ -184,7 +184,6 @@ static struct dma_channel sd_dma = {
 	.channel = DMA_SxCR_CHSEL_4,
 	.psize = DMA_SxCR_PSIZE_32BIT,
 	.paddress = (uint32_t)&SDIO_FIFO,
-	/* .msize = DMA_SxCR_MSIZE_32BIT, */
 	.msize = DMA_SxCR_MSIZE_16BIT,
 	.doublebuf = 0,
 	.minc = 1,
@@ -268,48 +267,41 @@ void sdio_clear_host_flag(enum sdio_status_flags flag)
 
 uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 {
-	dprintf(1,"sending cmd %d with arg %08lx", cmd, arg);
 	/* clear flags */
 	SDIO_ICR = (3 << 22) | (2047);
 	uint8_t acmd = (SDIO_RESPCMD & SDIO_RESPCMD_MASK) == 55;
 	/* check response type */
 	/* according to SD Spec */
 	uint8_t resp;
-	uint8_t waitresp;
-	switch(cmd){
+	switch(cmd){ // set type of response
+	case 0:
+	case 4:
+	case 15:
+		resp = 0;
+		break;
 	case 3:
 		resp = 6;
-		waitresp = 1;
 		break;
 	case 2:
 	case 9:
 	case 10:
 		resp = 2;
-		waitresp = 3;
 		break;
 	case 8:
 		resp = 7;
-		waitresp = 1;
-		break;
-	case 0:
-	case 4:
-	case 15:
-		waitresp = resp = 0;
 		break;
 	case 41:
 		if (acmd) {
 			resp = 3;
-			waitresp = 1;
 			break;
 		}
 		/* fallthrough */
-	/* according to
-	 * http://users.ece.utexas.edu/~valvano/EE345M/SD_Physical_Layer_Spec.pdf
-	 * acmd13 has a response R1, not as thought R3 */
 	default:
-		waitresp = resp = 1;
+		resp = 1;
 	}
-
+	uint8_t waitresp;
+	if (resp == 2) waitresp = 3;
+	else waitresp = !!resp;
 	/* set arg and send cmd */
 	SDIO_ARG = arg;
 	uint32_t tmp;
@@ -317,57 +309,57 @@ uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 				| (waitresp << SDIO_CMD_WAITRESP_SHIFT)
 				| SDIO_CMD_CPSMEN;
 	SDIO_CMD = tmp;
-	/* wait till sent */
-	while (SDIO_STA & SDIO_STA_CMDACT) {
-		dprintf(1,".");
-	}
-	dprintf(1,"\nsent\n");
-	int ret;
-	if (!resp && SDIO_STA & SDIO_STA_CMDSENT) {
-		ret = 0;
-	} else if (resp) {
-		/* wait for response */
-		uint32_t sta;
-		while ((sta = SDIO_STA)) {
-			if (sta & SDIO_STA_CMDREND) {
-				ret = 0;
-				break;
-			} else if (sta & SDIO_STA_CTIMEOUT) {
-				ret = ECTIMEOUT;
-				break;
-			} else if (sta & SDIO_STA_CCRCFAIL) {
-				ret = ECCRCFAIL;
-				break;
-			}
-		}
-	} else {
-		/* shouldn't happen */
-		ret = EUNKNOWN;
-	}
-	print_response_raw();
-	print_host_stat();
-	/* dprintf(0,"sending command %d returned %s\n", cmd, sdio_error[ret].msg); */
-	if (ret)
-	{
-		if (resp == 3)	// ignore CCRCFAIL for response type R3
+	uint32_t sta;
+	while ((sta = SDIO_STA)) {
+	switch (resp) {
+	case 0:
+		if (sta & SDIO_STA_CMDSENT)
 			return 0;
-		if (cmd == 7 && arg != (uint32_t)sdcard.rca << 16
-			&& ret == ECTIMEOUT) {// CTIMEOUT is a successful deselect of card
-			sdcard.last_status = 0;
+		break;
+	case 1:
+		if (sta & SDIO_STA_CMDREND) {
+			sdcard.last_status = SDIO_RESP1;
+			return 0;
+		} else if (cmd == 7 && sta & SDIO_STA_CTIMEOUT && arg != (uint32_t)sdcard.rca<<16) {
 			return 0;
 		}
-		/* TODO: something's happened. probably want to let the program */
-		/* know instead of blocking it. */
-		/* dprintf(0, "sending command has returned error. stopping\n"); */
-		int stop = 1;
-		while(stop)
-			__asm__("nop");
+		break;
+	case 2:
+		if (sta & SDIO_STA_CMDREND)
+			return 0;
+		break;
+	case 3:
+		if (sta & SDIO_STA_CCRCFAIL) {
+			// R3 responses don't include a CRC. If the fail bit
+			// is set, the response arrived.
+			sdcard.ocr = SDIO_RESP1;
+			return 0;
+		}
+		if (sta & SDIO_STA_CMDSENT)
+			return 0;
+		break;
+	case 6:
+		if (sta & SDIO_STA_CMDREND) {
+			/* TODO decode status bits out of response as well */
+			sdcard.rca = SDIO_RESP1 >> 16;
+			return 0;
+		}
+		break;
+	case 7:
+		if (sta & SDIO_STA_CMDREND) {
+			if (SDIO_RESP1 == arg)
+				return 0;
+			else
+				return EUNKNOWN;
+		}
+		break;
 	}
-	if (resp == 1) {
-		sdcard.last_status = SDIO_RESP1;
-		print_card_stat();
+	if (sta & SDIO_STA_CCRCFAIL) {
+		return ECCRCFAIL;
 	}
-	return ret;
+	if (sta & SDIO_STA_CTIMEOUT)
+		return ECTIMEOUT;
+	}
 }
 
 void print_card_stat(void)
