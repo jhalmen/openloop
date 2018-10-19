@@ -169,7 +169,7 @@ struct sdslice SD_scr[]={
 
 void get_scr(uint32_t data, char *buf)
 {
-	snprintf(buf, 16, "%s", data?"reserved":"Version 1.01-2.00");
+	snprintf(buf, 16, "%s", data?"reserved":"Version1.01-2.00");
 }
 void get_spec(uint32_t data, char *buf)
 {

@@ -169,7 +169,7 @@ struct {
 	uint32_t taac;		// time dependent factor of access time
 	uint32_t nsac;		// clock rate dependent factor of access time
 	uint16_t block_len;	// read=write block length. in bytes
-	uint16_t c_size;	// used to calculate memory capacity
+	uint32_t c_size;	// used to calculate memory capacity
 	uint16_t mult;		// used to calculate memory capacity
 	uint16_t sector_size;	// erasable sector, measured in write blocks
 } sdcard;
@@ -417,10 +417,6 @@ enum sd_status sd_identify(void)
 	/* v.2.0 card? */
 	sdio_send_cmd_blocking(8, 0x1aa);
 
-/* 	if (SDIO_RESP1 != 0x1aa) { */
-/* 		/1* return BAD_CARD;	// card should support at least sd spec v2 *1/ */
-/* 	} */
-
 	//send SD_APP_OP_COND (ACMD41)
 	/* cards respond with operating condition registers,
 	 * incompatible cards are placed in inactive state
@@ -436,7 +432,7 @@ enum sd_status sd_identify(void)
 	do {
 		sdio_send_cmd_blocking(55, 0);
 		sdio_send_cmd_blocking(41, 0x40ff8000); // argument needed so that card
-		/* sdcard.ocr = SDIO_RESP1;		// knows we support all except low voltages */
+							// knows we support all except low voltages
 							// and high capacity cards
 	} while (--retries && !(sdcard.powerup) && !(sdcard.error));
 	if (!(sdcard.powerup) || sdcard.error) {
@@ -457,8 +453,6 @@ enum sd_status sd_identify(void)
 	//send SET_RELATIVE_ADDR (CMD3) to a specific card
 	/* this card enters standby state */
 	sdio_send_cmd_blocking(3, 0);
-
-	/* sdcard.rca = SDIO_RESP1 >> 16; */
 
 	/* after detection is done host can send
 	 * SET_CLR_CARD_DETECT (ACMD42) to disable card internal PullUp
@@ -608,9 +602,8 @@ void read_single_block(uint32_t *dest_buffer, uint32_t sd_address)
 	// take care of dma
 	sd_dma.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM;
 	sd_dma.maddress = (uint32_t)dest_buffer;
-	dma_channel_init(&sd_dma);
-
 	sdio_send_cmd_blocking(17, sd_address);
+	dma_channel_init(&sd_dma);
 	/* timeout : 100ms */
 	SDIO_DTIMER = 2400000;
 	SDIO_DLEN = 512;	// in bytes

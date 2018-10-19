@@ -63,11 +63,6 @@ struct i2sfreq f16k = {
 	.odd = 1
 };
 
-uint16_t disable;
-uint16_t enable;
-uint16_t vol_full;
-uint16_t vol_low;
-
 enum {
 	START = 1,
 	STOP = 2,
@@ -153,23 +148,17 @@ int main(void)
 	///////////////////////// INIT STUFF /////////////////////////
 	pll_setup();
 	systick_setup(5);
-	/* enable_swo(115200); */
-
 /////////
 //	enable_swo(230400);
 ////////
-	/* enable_swo(2250000); */
 
 	i2c_setup();
 
 	/* configure codec */
-	disable = DAC_C1(0, 0, 0, 0, 0b0000);
-	enable = DAC_C1(0, 0, 0, 0, 0b1000);
-	vol_full = MASTDA(255, 1);
-	vol_low = MASTDA(222,1);
-
-	/* dma_channel_init(&audioin); */
-	/* dma_channel_init(&audioout); */
+	uint16_t disable = DAC_C1(0, 0, 0, 0, 0b0000);
+	uint16_t enable = DAC_C1(0, 0, 0, 0, 0b1001);
+	uint16_t vol_full = MASTDA(255, 1);
+	uint16_t vol_low = MASTDA(222,1);
 
 	dma_channel_init(&volumes);
 
@@ -200,7 +189,7 @@ int main(void)
 	return 0;
 }
 
-void dma2_stream0_isr(void)
+void dma2_stream0_isr(void)	// VOLUMES
 {
 	if (!dma_get_interrupt_flag(DMA2, DMA_STREAM0, DMA_TCIF))
 		return;
