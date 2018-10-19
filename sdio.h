@@ -28,8 +28,8 @@ uint8_t sdio_get_host_flag(enum sdio_status_flags flag);
 uint32_t sdio_get_resp(int n);
 uint8_t sdio_get_respcmd(void);
 void sdio_clear_host_flag(enum sdio_status_flags flag);
-uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg);
-void sdio_identify(void);
+enum sdio_status sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg);
+enum sd_status sd_identify(void);
 uint32_t sdio_get_card_status(void);
 
 uint32_t sdio_get_host_clkcr(void);
@@ -49,9 +49,14 @@ void write_single_block(uint32_t *data, uint32_t sd_address);
 void erase(uint32_t start, uint32_t nblocks);
 void sd_stop_data_transfer(void);
 
-enum {
+enum sdio_status {
 	ECTIMEOUT = 1,
 	ECCRCFAIL,
 	EUNKNOWN
+};
+enum sd_status {
+	SUCCESS,
+	FAILURE,
+	BAD_CARD
 };
 #endif

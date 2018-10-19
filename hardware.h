@@ -53,9 +53,8 @@ uint8_t encpos(void);
 void buttons_setup(void);
 void sddetect_setup(void);
 uint8_t sddetect(void);
-void sdio_periph_setup(void);
+enum sd_status sd_init(void);
 uint32_t get_sd_status(void);
-void sd_identify(void);
 
 
 void send_codec_cmd(uint16_t cmd);

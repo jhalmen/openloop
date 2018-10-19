@@ -338,7 +338,7 @@ uint32_t get_sd_status(void)
 	return sdio_get_card_status();
 }
 
-void sdio_periph_setup(void)
+enum sd_status sd_init(void)
 {
 	/* take care of the pins */
 	//enable PullUps on CMD and DAT lines
@@ -368,11 +368,17 @@ void sdio_periph_setup(void)
 	sdio_power_on();
 
 	/* identify card, to be able to use it after */
-	sdio_identify();
+	enum sd_status s;
+	while ((s = sd_identify()) == FAILURE) {}
+	if (s == BAD_CARD)
+		return s;
 
 	sd_enable_wbus();
 
 	/* speed up communication */
 	/* sdio_set_clk_div(2); //logic analyzer speed */
 	sdio_set_clk_div(0); //max speed
+	read_status();
+	read_scr();
+	return SUCCESS;
 }

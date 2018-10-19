@@ -27,7 +27,6 @@ uint32_t tick = 0;
 /* dma memory location for volume potentiometers */
 uint16_t chanvol[3] = {0,0,0};
 
-
 struct dma_channel volumes = {
 	.rcc = RCC_DMA2,
 	.dma = DMA2,
@@ -182,9 +181,8 @@ int main(void)
 	send_codec_cmd(enable);
 
 	if (sddetect()) {
-		sdio_periph_setup();
-		read_status();
-		read_scr();
+		if (sd_init() != SUCCESS)
+			while (1) __asm__("wfi");
 	}
 	while (stopabit) {
 		__asm__("nop");

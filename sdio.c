@@ -109,7 +109,6 @@ enum _curr_state {
 
 struct {
 	uint16_t rca;
-	bool sdv2;		// physical spec 2 card?
 	uint32_t memcap;	// calculated memory capacity
 	union {
 	uint32_t last_status;	// store for latest R1 response
@@ -265,7 +264,7 @@ void sdio_clear_host_flag(enum sdio_status_flags flag)
 	SDIO_ICR = flag;
 }
 
-uint8_t sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
+enum sdio_status sdio_send_cmd_blocking(uint8_t cmd, uint32_t arg)
 {
 	/* clear flags */
 	SDIO_ICR = (3 << 22) | (2047);
@@ -405,7 +404,7 @@ uint32_t sdio_get_card_status(void)
 	return SDIO_RESP1;
 }
 
-void sdio_identify(void)
+enum sd_status sd_identify(void)
 {
 	int retries = 10;
 	// according to family reference manual,
@@ -418,11 +417,9 @@ void sdio_identify(void)
 	/* v.2.0 card? */
 	sdio_send_cmd_blocking(8, 0x1aa);
 
-	if (SDIO_RESP1 == 0x1aa) {
-		sdcard.sdv2 = true;
-	} else {
-		sdcard.sdv2 = false;
-	}
+/* 	if (SDIO_RESP1 != 0x1aa) { */
+/* 		/1* return BAD_CARD;	// card should support at least sd spec v2 *1/ */
+/* 	} */
 
 	//send SD_APP_OP_COND (ACMD41)
 	/* cards respond with operating condition registers,
@@ -439,15 +436,18 @@ void sdio_identify(void)
 	do {
 		sdio_send_cmd_blocking(55, 0);
 		sdio_send_cmd_blocking(41, 0x40ff8000); // argument needed so that card
-		sdcard.ocr = SDIO_RESP1;		// knows we support all except low voltages
+		/* sdcard.ocr = SDIO_RESP1;		// knows we support all except low voltages */
 							// and high capacity cards
-	} while (--retries && !(sdcard.powerup));
-	if (!(sdcard.powerup)) {
+	} while (--retries && !(sdcard.powerup) && !(sdcard.error));
+	if (!(sdcard.powerup) || sdcard.error) {
 		dprintf(0, "SD card not supported!\n");
 		// clear sd struct
 		for (unsigned int i = 0; i < sizeof sdcard; ++i)
 			*((uint8_t*)&sdcard + i) = 0;
-		return;
+		return FAILURE;
+	}
+	if (!sdcard.high_capacity) {
+		return BAD_CARD;	// only support high capacity cards
 	}
 
 	//send ALL_SEND_CID (CMD2)
@@ -458,7 +458,7 @@ void sdio_identify(void)
 	/* this card enters standby state */
 	sdio_send_cmd_blocking(3, 0);
 
-	sdcard.rca = SDIO_RESP1 >> 16;
+	/* sdcard.rca = SDIO_RESP1 >> 16; */
 
 	/* after detection is done host can send
 	 * SET_CLR_CARD_DETECT (ACMD42) to disable card internal PullUp
@@ -478,7 +478,9 @@ void sdio_identify(void)
 	sdcard.csd[2] = SDIO_RESP3;
 	sdcard.csd[3] = SDIO_RESP4;
 	parse_csd();
-
+	sdio_send_cmd_blocking(7, sdcard.rca << 16);
+	sdio_send_cmd_blocking(13, sdcard.rca << 16);
+	return SUCCESS;
 }
 
 /*
