@@ -54,7 +54,6 @@ void buttons_setup(void);
 void sddetect_setup(void);
 uint8_t sddetect(void);
 enum sd_status sd_init(void);
-uint32_t get_sd_status(void);
 
 
 void send_codec_cmd(uint16_t cmd);

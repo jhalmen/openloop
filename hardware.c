@@ -333,11 +333,6 @@ uint8_t sddetect(void)
 	return !(gpio_get(GPIOA, GPIO15));
 }
 
-uint32_t get_sd_status(void)
-{
-	return sdio_get_card_status();
-}
-
 enum sd_status sd_init(void)
 {
 	/* take care of the pins */
