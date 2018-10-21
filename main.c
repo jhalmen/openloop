@@ -23,6 +23,7 @@
 #include <stdlib.h>
 
 uint32_t tick = 0;
+const uint8_t norepeat = 4; // measured in ticks
 
 /* dma memory location for volume potentiometers */
 uint16_t chanvol[3] = {0,0,0};
@@ -30,7 +31,7 @@ uint16_t chanvol[3] = {0,0,0};
 struct dma_channel volumes = {
 	.rcc = RCC_DMA2,
 	.dma = DMA2,
-	.stream = DMA_STREAM0,
+	.stream = DMA_STREAM4,
 	.direction = DMA_SxCR_DIR_PERIPHERAL_TO_MEM,
 	.channel = DMA_SxCR_CHSEL_0,
 	.psize = DMA_SxCR_PSIZE_16BIT,
@@ -46,13 +47,20 @@ struct dma_channel volumes = {
 	.periphflwctrl = 0,
 	.numberofdata = 3,
 	.interrupts = DMA_SxCR_TCIE,
-	.nvic = NVIC_DMA2_STREAM0_IRQ
+	.nvic = NVIC_DMA2_STREAM4_IRQ
 };
 
 struct i2sfreq f96k = {
 	.plln = 258,
 	.pllr = 3,
 	.div = 3,
+	.odd = 1
+};
+
+struct i2sfreq f44k1 = {
+	.plln = 429,
+	.pllr = 4,
+	.div = 9,
 	.odd = 1
 };
 
@@ -82,83 +90,123 @@ volatile struct _loop {
 	uint32_t end_idx;
 	uint8_t has_undo:1;
 	uint8_t has_redo:1;
-} loop;
+} loop = { 2000, 0, 255, 0, 0};
 
 volatile struct _sd {
 	uint32_t addr;
 	int16_t buffer[512];
-	uint16_t idx;
-	uint16_t prvidx;
-	uint8_t xferlow:1;
-	uint8_t xferhigh:1;
-} sdin;
+	int16_t *xfer;
+	int16_t idx;
+	int16_t prvidx;
+} sdin, sdout;
 
+volatile uint8_t waaaa;
+
+int16_t *gs;
 int16_t get_sample(void)
 {
+	if (sdin.idx % 512 != sdin.idx) {waaaa |= 1;}
 	return sdin.buffer[sdin.idx++];
+	/* return *gs++; */
+}
+int16_t *ps;
+void put_sample(int16_t s)
+{
+	if (sdout.idx % 512 != sdout.idx) {waaaa |= 2;}
+	sdout.buffer[sdout.idx++] = s;
+	/* *ps++ = s; */
 }
 
-void buffer_init()
+void init_play(void)
 {
-	sdin.addr = 4000;
+	sdin.addr = loop.start;
 	sdin.prvidx = -1;
 	sdin.idx = 0;
-	sdin.xferlow = 1;
 }
 
-void handle_buffer(void) {
-	static int16_t *b = sdin.buffer;
-	if (sdin.addr == 6000) {
-		state = STANDBY;
-		buffer_init();
+void init_record(void)
+{
+	sdout.addr = loop.start;
+	sdout.prvidx = 0;
+	sdout.idx = 0;
+}
+
+uint8_t card_busy(void) {return !gpio_get(GPIOC, GPIO8);}
+
+void handle_play(void)
+{
+	/* static buffer */
+	/* gs = buffer; */
+	/* TODO make sure that we play to the end idx at the end addr!! */
+	if (loop.len && sdin.addr == loop.start + loop.len) {
+		if (sdin.idx % 256 == loop.end_idx) {
+			init_play();
+		}
 	}
 	if (sdin.prvidx != sdin.idx) {
-	if (sdin.idx == 512) sdin.idx = 0;
-	if (sdin.idx == 0) {
-		sdin.xferhigh = 1;
-		b = sdin.buffer + 256;
+		sdin.idx %= 512;
+		sdin.prvidx = sdin.idx;
+		if (sdin.idx == 0) { sdin.xfer = sdin.buffer + 256; }
+		if (sdin.idx == 256) { sdin.xfer = sdin.buffer; }
+		if (sdin.prvidx == -1) sdin.xfer = sdin.buffer; //TODO this should actually
+							// only be handled after the
+							// first data was written
 	}
-	if (sdin.idx == 256) {
-		sdin.xferlow = 1;
-		b = sdin.buffer;
-	}
-	if ((sdin.xferlow | sdin.xferhigh) && !(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN)
-		&& gpio_get(GPIOC, GPIO8)){
-		read_single_block(b, sdin.addr++);
-		if (sdin.xferlow) {
-			sdin.xferlow = 0;
-		} else {
-			sdin.xferhigh = 0;
-		}
-		/* if (sdin.idx == -1) {	// initial samples */
-		/* 	sdin.idx = 0; */
-		/* } */
-	}
-	sdin.prvidx = sdin.idx;
+	if (sdin.xfer && !(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN)
+		&& !card_busy()){
+		read_single_block((uint32_t *)sdin.xfer, sdin.addr++);
+		sdin.xfer = NULL;
 	}
 }
 
+void handle_record(void)
+{
+	if (loop.len && sdout.addr == loop.start + loop.len) {
+		// can only get here if already overdubbing
+		if (sdout.idx % 256 == loop.end_idx) {
+			init_record();
+		}
+	}
+	if (sdout.idx != sdout.prvidx) {
+		// once after every buffer write
+		sdout.idx %= 512;
+		sdout.prvidx = sdout.idx;
+		if (sdout.idx == 0) {
+			if (sdout.xfer) waaaa |= 16;
+			sdout.xfer = sdout.buffer + 256;
+		}
+		if (sdout.idx == 256) {
+			if (sdout.xfer) waaaa |= 16;
+			sdout.xfer = sdout.buffer;
+		}
+	}
+	if (sdout.xfer && !(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN)
+			&& !card_busy()) {
+		write_single_block((uint32_t *)sdout.xfer, sdout.addr++);
+		sdout.xfer = NULL;
+	}
+}
+
+void end_record(void)
+{
+	if (!loop.len) {
+		loop.end_idx = sdout.idx % 256;
+		loop.len = sdout.addr - loop.start + 1;
+	}
+	init_record();
+}
 
 void startaudio(void);
 
-volatile uint32_t *clooook = &SDIO_CLKCR;
-int stopabit = 0;
 int main(void)
 {
 	///////////////////////// INIT STUFF /////////////////////////
 	pll_setup();
 	systick_setup(5);
-/////////
-//	enable_swo(230400);
-////////
+
+	//enable_swo(230400);
 
 	i2c_setup();
-
-	/* configure codec */
-	uint16_t disable = DAC_C1(0, 0, 0, 0, 0b0000);
-	uint16_t enable = DAC_C1(0, 0, 0, 0, 0b1001);
-	uint16_t vol_full = MASTDA(255, 1);
-	uint16_t vol_low = MASTDA(222,1);
 
 	dma_channel_init(&volumes);
 
@@ -167,33 +215,49 @@ int main(void)
 	buttons_setup();
 	sddetect_setup();
 
-	send_codec_cmd(enable);
+	//send_codec_cmd(DAC_C1(0,0,0,0, 0b1001));
 
 	if (sddetect()) {
 		if (sd_init() != SUCCESS)
 			while (1) __asm__("wfi");
 	}
-	while (stopabit) {
-		__asm__("nop");
-	}
 
-	sound_setup(&f96k);
+	sound_setup(&f16k);
 	startaudio();
-	buffer_init();
+	init_play();
+	init_record();
 
 	///////////////////////// LOOP STUFF /////////////////////////
 	while (1) {
-		handle_buffer();
+		handle_record();
+		handle_play();
 		__asm__("nop");
 	}
 	return 0;
 }
 
-void dma2_stream0_isr(void)	// VOLUMES
+uint8_t enablerecord = 0;
+uint8_t disablerecord = 0;
+uint8_t enableplayback = 0;
+uint8_t disableplayback = 0;
+
+void startaudio(void)
 {
-	if (!dma_get_interrupt_flag(DMA2, DMA_STREAM0, DMA_TCIF))
+	spi_enable_rx_buffer_not_empty_interrupt(I2S2ext);
+	spi_enable_tx_buffer_empty_interrupt(I2S2);
+}
+
+void sys_tick_handler(void)
+{
+	++tick;
+	adc_start_conversion_regular(ADC1);
+}
+
+void dma2_stream4_isr(void)	// VOLUMES
+{
+	if (!dma_get_interrupt_flag(volumes.dma, volumes.stream, DMA_TCIF))
 		return;
-	dma_clear_interrupt_flags(DMA2, DMA_STREAM0, DMA_TCIF);
+	dma_clear_interrupt_flags(volumes.dma, volumes.stream, DMA_TCIF);
 	static uint16_t oldvol[3] = {0,0,0};
 	/* input gains and output volume */
 	if ((chanvol[2] - oldvol[2] > 5) ||
@@ -215,83 +279,62 @@ void dma2_stream0_isr(void)	// VOLUMES
 	/* } */
 }
 
-void sys_tick_handler(void)
+void exti15_10_isr(void)	// START & STOP BUTTONS
 {
-	++tick;
-	adc_start_conversion_regular(ADC1);
-}
-
-void exti15_10_isr(void)
-{
-	if (exti_get_flag_status(EXTI11)){
-		exti_reset_request(EXTI11);
-		/* start stomped! */
-		dprintf(0, "start stomped!\n");
-		statechange = START;
-	}
-	if (exti_get_flag_status(EXTI12)){
-		exti_reset_request(EXTI12);
-		/* stop stomped! */
-		/* consider stopping data transfer */
-		/* send_codec_cmd(disable); */
-		dprintf(0, "stop stomped!\n");
-		statechange = STOP;
+if (exti_get_flag_status(EXTI11)){
+	exti_reset_request(EXTI11);
+	static uint32_t laststart = 0;
+	if (tick >= laststart + norepeat) {
+		laststart = tick;
+	/* start stomped! */
+	dprintf(0, "start stomped!\n");
+	/* TODO */
 	}
 }
-uint8_t enableplayback = 0;
+if (exti_get_flag_status(EXTI12)){
+	exti_reset_request(EXTI12);
+	static uint32_t laststop = 0;
+	if (tick >= laststop + norepeat) {
+		laststop = tick;
+	/* stop stomped! */
+	dprintf(0, "stop stomped!\n");
+	/* TODO */
+	if (state & RECORD) {
+		disablerecord = 1;
+	} else {
+		enablerecord = 1;
+	}
+	}
+}
+}
 
-void exti2_isr(void)
+void exti2_isr(void)		// MENU BUTTON
 {
 	exti_reset_request(EXTI2);
-	/* menu button pressed */
-	/* send_codec_cmd(enable); */
-	dprintf(0, "menu pressed!\n");
-	/* statechange = MENU; */
-	if (state & PLAY) {
-		state &= 2;
-	} else {
-		enableplayback = 1;
+	static uint32_t lastmenu = 0;
+	if (tick >= lastmenu + norepeat) {
+		lastmenu = tick;
+		/* menu button pressed */
+		/* send_codec_cmd(enable); */
+		dprintf(0, "menu pressed!\n");
+		/* statechange = MENU; */
+		if (state & PLAY) {
+			disableplayback = 1;
+		} else {
+			enableplayback = 1;
+		}
 	}
 }
 
-void put_sample(int16_t sample)
+void spi2_isr(void)		// I2S data interrupt
 {
-	static int16_t buffer[512];
-	static int16_t *b;
-	static int16_t idx = 0;
-	static uint8_t dowrite = 0;
-	if (idx == 512) idx = 0;
-
-	buffer[idx++] = sample;
-	if (!(idx % 256)) {
-		/* write buffer out */
-		b = buffer + 256*((idx-1)/256);
-		dowrite = 1;
-	}
-	if (dowrite && !(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN)
-			&& gpio_get(GPIOC,GPIO8)) {
-		write_single_block(b, 0);// sdaddress++);
-		dowrite = 0;
-	}
-}
-
-void startaudio(void)
-{
-	spi_enable_rx_buffer_not_empty_interrupt(I2S2ext);
-	spi_enable_tx_buffer_empty_interrupt(I2S2);
-}
-
-volatile uint32_t *spi = &SPI_SR(I2S2);
-volatile uint32_t *ext = &SPI_SR(I2S2ext);
-
-void spi2_isr(void)
-{
+	while (waaaa & 16) ;
 	static int16_t ldata = 0, rdata = 0;
 	// tx
 	uint32_t sr = SPI_SR(I2S2);
 	if (sr & (SPI_SR_UDR | SPI_SR_OVR))
 		while (sr) {__asm__("nop");}	// i2s error! should never happen!
-	if (sr & SPI_SR_TXE) {			// i2s needs data
+	if (sr & SPI_SR_TXE) {			// I2S DATA TX
 		if (sr & SPI_SR_CHSIDE) {
 			SPI_DR(I2S2) = rdata;
 		} else {
@@ -302,19 +345,39 @@ void spi2_isr(void)
 	sr = SPI_SR(I2S2ext);
 	if (sr & (SPI_SR_UDR | SPI_SR_OVR))
 		while (sr) {__asm__("nop");}	// i2s error! should never happen!
-	if (sr & SPI_SR_RXNE) {			// i2s has data
+	if (sr & SPI_SR_RXNE) {			// I2S has data
 		int16_t audio = SPI_DR(I2S2ext);
-		if (enableplayback && !(sr & SPI_SR_CHSIDE)) {
-			state |= PLAY;
-			enableplayback = 0;
+		if (state & PLAY) {
+			if (sr & SPI_SR_CHSIDE && !(sdin.idx % 2)) {
+				/* shouldn't happen */
+				waaaa |= 4;
+			}
+			int32_t temp = audio + get_sample();
+			__asm__("ssat %[dst], #16, %[src]" //SIGNED SATURATE
+					: [dst] "=r" (audio)
+					: [src] "r" (temp));
 		}
-		if (state & PLAY)
-			/* audio = (audio >> 1) + (get_sample() >> 1); */
-			audio = get_sample();
 		if (state & RECORD)
 			put_sample(audio);
 		if (sr & SPI_SR_CHSIDE) {
 			rdata = audio;
+			// next time will be left channel -> handle state changes
+			if (enablerecord) {
+				state |= RECORD;
+				enablerecord = 0;
+			} else if (disablerecord) {
+				state &= ~RECORD;
+				disablerecord = 0;
+				end_record();
+			}
+			if (enableplayback) {
+				state |= PLAY;
+				enableplayback = 0;
+			} else if (disableplayback) {
+				state &= ~PLAY;
+				disableplayback = 0;
+				init_play();
+			}
 		} else {
 			ldata = audio;
 		}
