@@ -22,11 +22,21 @@
 #include "swo.h"
 #include <stdlib.h>
 
-uint32_t tick = 0;
-const uint8_t norepeat = 4; // measured in ticks
+/* function prototypes */
+int16_t get_sample(void);
+void put_sample(int16_t s);
+uint8_t card_busy(void);
+uint8_t sd_dma_done(void);
+void handle_play(void);
+void handle_record(void);
+void end_record(void);
+void startaudio(void);
 
-/* dma memory location for volume potentiometers */
-uint16_t chanvol[3] = {0,0,0};
+/* globals */
+volatile uint32_t tick = 0;		// system tick
+const uint8_t norepeat = 4;		// software debounce. [in ticks]
+volatile uint16_t chanvol[3] = {0,0,0};	// adc volume values. updated by dma
+volatile uint8_t waaaa;			// error accumulator
 
 struct dma_channel volumes = {
 	.rcc = RCC_DMA2,
@@ -84,7 +94,12 @@ volatile enum {
 	OVRDUB = 3
 } state = STANDBY;
 
-volatile struct _loop {
+uint8_t enablerecord;
+uint8_t disablerecord;
+uint8_t enableplayback;
+uint8_t disableplayback;
+
+struct {
 	uint32_t start;
 	uint32_t len;
 	uint32_t end_idx;
@@ -100,16 +115,14 @@ volatile struct _sd {
 	int16_t prvidx;
 } sdin, sdout;
 
-volatile uint8_t waaaa;
 
-int16_t *gs;
 int16_t get_sample(void)
 {
 	if (sdin.idx % 512 != sdin.idx) {waaaa |= 1;}
 	return sdin.buffer[sdin.idx++];
 	/* return *gs++; */
 }
-int16_t *ps;
+
 void put_sample(int16_t s)
 {
 	if (sdout.idx % 512 != sdout.idx) {waaaa |= 2;}
@@ -202,20 +215,20 @@ int main(void)
 {
 	///////////////////////// INIT STUFF /////////////////////////
 	pll_setup();
-	systick_setup(5);
 
 	//enable_swo(230400);
 
+	/* TODO increase i2c frequency to 400kHz and test */
 	i2c_setup();
 
-	dma_channel_init(&volumes);
-
-	adc_setup();
 	encoder_setup();
 	buttons_setup();
 	sddetect_setup();
 
-	//send_codec_cmd(DAC_C1(0,0,0,0, 0b1001));
+	send_codec_cmd(RESET());
+	send_codec_cmd(DAC_C1(1,0,0,1, 0b1001));
+	dma_channel_init(&volumes);
+	adc_setup();
 
 	if (sddetect()) {
 		if (sd_init() != SUCCESS)
@@ -223,10 +236,11 @@ int main(void)
 	}
 
 	sound_setup(&f16k);
-	startaudio();
+	systick_setup(5);
 	init_play();
 	init_record();
 
+	startaudio();
 	///////////////////////// LOOP STUFF /////////////////////////
 	while (1) {
 		handle_record();
@@ -236,10 +250,6 @@ int main(void)
 	return 0;
 }
 
-uint8_t enablerecord = 0;
-uint8_t disablerecord = 0;
-uint8_t enableplayback = 0;
-uint8_t disableplayback = 0;
 
 void startaudio(void)
 {
@@ -250,6 +260,7 @@ void startaudio(void)
 void sys_tick_handler(void)
 {
 	++tick;
+	// update volumes
 	adc_start_conversion_regular(ADC1);
 }
 
@@ -258,7 +269,7 @@ void dma2_stream4_isr(void)	// VOLUMES
 	if (!dma_get_interrupt_flag(volumes.dma, volumes.stream, DMA_TCIF))
 		return;
 	dma_clear_interrupt_flags(volumes.dma, volumes.stream, DMA_TCIF);
-	static uint16_t oldvol[3] = {0,0,0};
+	static uint16_t oldvol[3] = {0xffff, 0xffff, 0xffff};
 	/* input gains and output volume */
 	if ((chanvol[2] - oldvol[2] > 5) ||
 		(oldvol[2] - chanvol[2] > 5)) {
@@ -328,12 +339,11 @@ void exti2_isr(void)		// MENU BUTTON
 
 void spi2_isr(void)		// I2S data interrupt
 {
-	while (waaaa & 16) ;
 	static int16_t ldata = 0, rdata = 0;
-	// tx
+	// TX
 	uint32_t sr = SPI_SR(I2S2);
 	if (sr & (SPI_SR_UDR | SPI_SR_OVR))
-		while (sr) {__asm__("nop");}	// i2s error! should never happen!
+		waaaa |= 8;	// i2s error! should never happen!
 	if (sr & SPI_SR_TXE) {			// I2S DATA TX
 		if (sr & SPI_SR_CHSIDE) {
 			SPI_DR(I2S2) = rdata;
@@ -341,10 +351,10 @@ void spi2_isr(void)		// I2S data interrupt
 			SPI_DR(I2S2) = ldata;
 		}
 	}
-	// rx
+	// RX
 	sr = SPI_SR(I2S2ext);
 	if (sr & (SPI_SR_UDR | SPI_SR_OVR))
-		while (sr) {__asm__("nop");}	// i2s error! should never happen!
+		waaaa |= 8;	// i2s error! should never happen!
 	if (sr & SPI_SR_RXNE) {			// I2S has data
 		int16_t audio = SPI_DR(I2S2ext);
 		if (state & PLAY) {
