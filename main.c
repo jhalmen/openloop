@@ -84,19 +84,19 @@ enum {
 	START = 1,
 	STOP = 2,
 	MENU = 4
-} statechange = 0;
+} action = 0;
 
-volatile enum {
+volatile enum s{
 	STANDBY = 0,
 	RECORD = 1,
 	PLAY = 2,
 	OVRDUB = 3
 } state = STANDBY;
 
-uint8_t enablerecord;
-uint8_t disablerecord;
-uint8_t enableplayback;
-uint8_t disableplayback;
+const enum s trans[][5] = {{0,	PLAY,	STANDBY,	0,	STANDBY},
+			{0,	PLAY,	STANDBY,	0,	RECORD},
+			{0,	OVRDUB,	STANDBY,	0,	PLAY},
+			{0,	PLAY,	STANDBY,	0,	OVRDUB}};
 
 struct {
 	uint32_t start;
@@ -243,14 +243,8 @@ void handle_sd(void)
 		sd.rx = 0;
 		sd.addr++;
 	}
-	/* if (!(state & PLAY)) */
-	/* 	sd.raddr = sd.waddr; */
-	/* if (!(state & RECORD)) */
-	/* 	sd.waddr = sd.raddr; */
-	/* if (abs(sd.waddr - sd.raddr) > 2) */
-	/* 	waaaa |= 4; */
 	if (loop.len && sd.addr == loop.start + loop.len){
-		if (sd.idx == loop.end_idx) {
+		if (sd.idx % 256 == loop.end_idx) {
 			sd.addr = loop.start;
 			sd.idx = 0;
 			/* TODO probably send last tx buffer */
@@ -303,9 +297,9 @@ if (exti_get_flag_status(EXTI11)){
 	static uint32_t laststart = 0;
 	if (tick >= laststart + norepeat) {
 		laststart = tick;
-	/* start stomped! */
-	dprintf(0, "start stomped!\n");
-	/* TODO */
+		/* start stomped! */
+		dprintf(0, "start stomped!\n");
+		action |= START;
 	}
 }
 if (exti_get_flag_status(EXTI12)){
@@ -313,14 +307,9 @@ if (exti_get_flag_status(EXTI12)){
 	static uint32_t laststop = 0;
 	if (tick >= laststop + norepeat) {
 		laststop = tick;
-	/* stop stomped! */
-	dprintf(0, "stop stomped!\n");
-	/* TODO */
-	if (state & RECORD) {
-		disablerecord = 1;
-	} else {
-		enablerecord = 1;
-	}
+		/* stop stomped! */
+		dprintf(0, "stop stomped!\n");
+		action |= STOP;
 	}
 }
 }
@@ -333,12 +322,7 @@ void exti2_isr(void)		// MENU BUTTON
 		lastmenu = tick;
 		/* menu button pressed */
 		dprintf(0, "menu pressed!\n");
-		/* statechange = MENU; */
-		if (state & PLAY) {
-			disableplayback = 1;
-		} else {
-			enableplayback = 1;
-		}
+		action |= START; // TODO MENU;
 	}
 }
 
@@ -363,10 +347,6 @@ void spi2_isr(void)		// I2S data interrupt
 	if (sr & SPI_SR_RXNE) {			// I2S has data
 		int16_t audio = SPI_DR(I2S2ext);
 		if (state & PLAY) {
-			if (sr & SPI_SR_CHSIDE && !(sdin.idx % 2)) {
-				/* shouldn't happen */
-				waaaa |= 4;
-			}
 			int32_t temp = audio + get_sample();
 			__asm__("ssat %[dst], #16, %[src]" //SIGNED SATURATE
 					: [dst] "=r" (audio)
@@ -374,32 +354,28 @@ void spi2_isr(void)		// I2S data interrupt
 		}
 		if (state & RECORD)
 			put_sample(audio);
+		if (state)
+			sd.idx++;
 		if (sr & SPI_SR_CHSIDE) {
 			rdata = audio;
-			if (enablerecord) {
-				state |= RECORD;
-				enablerecord = 0;
-			} else if (disablerecord) {
-				state &= ~RECORD;
-				disablerecord = 0;
-				/* end_record(); */
-				if (!loop.len) {
-					loop.end_idx = sd.idx;
+			enum s nextstate;
+			if (action && (nextstate = trans[state][action]) != state) {
+				action = 0;
+				if (state & RECORD && !(nextstate & RECORD))
+					if (!loop.len) {
+						loop.end_idx = sd.idx % 256;
 					/* TODO addr should be set in handle_sd */
 					/* 	when it's sure we handled the */
 					/* 	last block */
-					loop.len = sd.addr  - loop.start;
+						loop.len = sd.addr  - loop.start;
+					}
+				if (nextstate < state) {
+					sd.addr = loop.start;
+					sd.idx = 0;
 				}
-				sd.addr = loop.start;
-				sd.idx = 0;
-			}
-			if (enableplayback) {
-				state |= PLAY;
-				enableplayback = 0;
-			} else if (disableplayback) {
-				state &= ~PLAY;
-				disableplayback = 0;
-				init_play();
+				state = nextstate;
+				if (state == PLAY && !loop.len)
+					state = RECORD;
 			}
 		} else {
 			ldata = audio;
