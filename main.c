@@ -276,18 +276,17 @@ void dma2_stream4_isr(void)	// VOLUMES
 		send_codec_cmd(MASTDA(chanvol[2] >> 2,1));
 		oldvol[2] = (chanvol[2] >> 2) << 2;
 	}
-	/* uncomment this after soldering potis */
 	/* TODO check to use PGA here */
-	/* if ((chanvol[1] - oldvol[1] > 5) || */
-	/* 	(oldvol[1] - chanvol[1] > 5)) { */
-	/* 	send_codec_cmd(ADCR(chanvol[1] >> 2,1)); */
-	/* 	oldvol[1] = (chanvol[1] >> 2) << 2; */
-	/* } */
-	/* if ((chanvol[0] - oldvol[0] > 5) || */
-	/* 	(oldvol[0] - chanvol[0] > 5)) { */
-	/* 	send_codec_cmd(ADCL(chanvol[0] >> 2,1)); */
-	/* 	oldvol[0] = (chanvol[0] >> 2) << 2; */
-	/* } */
+	if ((chanvol[1] - oldvol[1] > 5) ||
+		(oldvol[1] - chanvol[1] > 5)) {
+		send_codec_cmd(ADCR(chanvol[1] >> 2,1));
+		oldvol[1] = (chanvol[1] >> 2) << 2;
+	}
+	if ((chanvol[0] - oldvol[0] > 5) ||
+		(oldvol[0] - chanvol[0] > 5)) {
+		send_codec_cmd(ADCL(chanvol[0] >> 2,1));
+		oldvol[0] = (chanvol[0] >> 2) << 2;
+	}
 }
 
 void exti15_10_isr(void)	// START & STOP BUTTONS
