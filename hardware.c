@@ -372,7 +372,8 @@ enum sd_status sd_init(void)
 
 	/* speed up communication */
 	/* sdio_set_clk_div(2); //logic analyzer speed */
-	sdio_set_clk_div(0); //max speed
+	/* sdio_set_clk_div(0); //max speed */
+	sdio_enable_clk_bypass(); //max speed
 	read_status();
 	read_scr();
 	return SUCCESS;
