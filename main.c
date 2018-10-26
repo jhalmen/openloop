@@ -27,8 +27,7 @@ int16_t get_sample(void);
 void put_sample(int16_t s);
 uint8_t card_busy(void);
 uint8_t sd_dma_done(void);
-void handle_play(void);
-void handle_record(void);
+void handle_sd(void);
 void end_record(void);
 void startaudio(void);
 
@@ -102,114 +101,27 @@ uint8_t disableplayback;
 struct {
 	uint32_t start;
 	uint32_t len;
-	uint32_t end_idx;
-	uint8_t has_undo:1;
-	uint8_t has_redo:1;
-} loop = { 2000, 0, 255, 0, 0};
+	int16_t end_idx;
+} loop = {10000, 0, 0};
 
-volatile struct _sd {
-	uint32_t addr;
-	int16_t buffer[512];
-	int16_t *xfer;
-	int16_t idx;
-	int16_t prvidx;
-} sdin, sdout;
-
-
-int16_t get_sample(void)
-{
-	if (sdin.idx % 512 != sdin.idx) {waaaa |= 1;}
-	return sdin.buffer[sdin.idx++];
-	/* return *gs++; */
-}
-
-void put_sample(int16_t s)
-{
-	if (sdout.idx % 512 != sdout.idx) {waaaa |= 2;}
-	sdout.buffer[sdout.idx++] = s;
-	/* *ps++ = s; */
-}
-
-void init_play(void)
-{
-	sdin.addr = loop.start;
-	sdin.prvidx = -1;
-	sdin.idx = 0;
-}
-
-void init_record(void)
-{
-	sdout.addr = loop.start;
-	sdout.prvidx = 0;
-	sdout.idx = 0;
-}
-
-uint8_t card_busy(void) {return !gpio_get(GPIOC, GPIO8);}
-
-void handle_play(void)
-{
-	/* static buffer */
-	/* gs = buffer; */
-	/* TODO make sure that we play to the end idx at the end addr!! */
-	if (loop.len && sdin.addr == loop.start + loop.len) {
-		if (sdin.idx % 256 == loop.end_idx) {
-			init_play();
-		}
-	}
-	if (sdin.prvidx != sdin.idx) {
-		sdin.idx %= 512;
-		sdin.prvidx = sdin.idx;
-		if (sdin.idx == 0) { sdin.xfer = sdin.buffer + 256; }
-		if (sdin.idx == 256) { sdin.xfer = sdin.buffer; }
-		if (sdin.prvidx == -1) sdin.xfer = sdin.buffer; //TODO this should actually
-							// only be handled after the
-							// first data was written
-	}
-	if (sdin.xfer && !(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN)
-		&& !card_busy()){
-		read_single_block((uint32_t *)sdin.xfer, sdin.addr++);
-		sdin.xfer = NULL;
-	}
-}
-
-void handle_record(void)
-{
-	if (loop.len && sdout.addr == loop.start + loop.len) {
-		// can only get here if already overdubbing
-		if (sdout.idx % 256 == loop.end_idx) {
-			init_record();
-		}
-	}
-	if (sdout.idx != sdout.prvidx) {
-		// once after every buffer write
-		sdout.idx %= 512;
-		sdout.prvidx = sdout.idx;
-		if (sdout.idx == 0) {
-			if (sdout.xfer) waaaa |= 16;
-			sdout.xfer = sdout.buffer + 256;
-		}
-		if (sdout.idx == 256) {
-			if (sdout.xfer) waaaa |= 16;
-			sdout.xfer = sdout.buffer;
-		}
-	}
-	if (sdout.xfer && !(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN)
-			&& !card_busy()) {
-		write_single_block((uint32_t *)sdout.xfer, sdout.addr++);
-		sdout.xfer = NULL;
-	}
-}
-
-void end_record(void)
-{
-	if (!loop.len) {
-		loop.end_idx = sdout.idx % 256;
-		loop.len = sdout.addr - loop.start + 1;
-	}
-	init_record();
-}
-
-void startaudio(void);
+struct {
+	/* buffers */
+	int16_t in[512];	// from card to codec
+	int16_t out[512];	// from codec to card
+	/* addresses */
+	uint16_t idx;		// in buffers
+	uint32_t addr;		// in card
+	/* pointers */
+	int16_t *txfer;		// from pointer to card
+	int16_t *rxfer;		// from card to pointer
+	/* flags */
+	uint8_t r:1;		// sample read from in buffer
+	uint8_t w:1;		// sample written to out buffer
+	uint8_t rx:1;
+	uint8_t tx:1;
+} sd = {
+	.addr = 10000
+};
 
 int main(void)
 {
@@ -237,19 +149,114 @@ int main(void)
 
 	sound_setup(&f16k);
 	systick_setup(5);
-	init_play();
-	init_record();
 
 	startaudio();
 	///////////////////////// LOOP STUFF /////////////////////////
 	while (1) {
-		handle_record();
-		handle_play();
+		handle_sd();
 		__asm__("nop");
 	}
 	return 0;
 }
 
+int16_t get_sample(void)
+{
+	if (sd.r)
+		waaaa |= 1;
+	sd.r = 1;
+	return sd.in[sd.idx];
+}
+
+void put_sample(int16_t s)
+{
+	static int overwritten = 0;
+	static unsigned int atidx[512];
+	sd.out[sd.idx] = s;
+	if (sd.w) {
+		waaaa |= 2;
+		atidx[overwritten++] = sd.idx;
+	}
+	sd.w = 1;
+}
+
+uint8_t sd_dma_done(void)
+{
+	return !(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
+}
+
+uint8_t card_busy(void)
+{
+	return !gpio_get(GPIOC, GPIO8);
+}
+
+void handle_sd(void)
+{
+	if (sd.r || sd.w) {
+	/* if (state && state == ((uint8_t)(sd.r << 1) | sd.w)) { */
+		sd.r = 0;
+		sd.w = 0;
+		sd.idx %= 512;
+		if (sd.idx == 0) {
+			if (state & PLAY) {
+				if (sd.rxfer)
+					waaaa |= 64;
+				sd.rxfer = sd.in + 256;
+			}
+			if (state & RECORD) {
+				if (sd.txfer)
+					waaaa |= 32;
+				sd.txfer = sd.out + 256;
+			}
+			/* sd.txfer = (int16_t*)((int32_t)(sd.out + 256) * !!(state & RECORD)); */
+		}
+		if (sd.idx == 256) {
+			if (state & PLAY) {
+				if (sd.rxfer)
+					waaaa |= 64;
+				sd.rxfer = sd.in;
+			}
+			/* sd.txfer = (int16_t*)((int32_t)(sd.out) * !!(state & RECORD)); */
+			if (state & RECORD) {
+				if (sd.txfer)
+					waaaa |= 32;
+				sd.txfer = sd.out;
+		/* handle copying data to inbuffer on first recording */
+				/* if (sd.addr == loop.start) { */
+				/* 	for (int i = 0; i < 256; ++i) */
+				/* 		sd.in[i] = sd.out[i]; */
+				/* } */
+			}
+		}
+	}
+	if (sd.rxfer && sd_dma_done() && !card_busy()) {
+		read_single_block((uint32_t*)sd.rxfer, sd.addr);
+		sd.rxfer = NULL;
+		sd.rx = 1;
+	}
+	if (sd.txfer && sd_dma_done() && !card_busy()) {
+		write_single_block((uint32_t*)sd.txfer, sd.addr);
+		sd.txfer = NULL;
+		sd.tx = 1;
+	}
+	if (state && state == ((uint8_t)(sd.rx << 1) | sd.tx)) {
+		sd.tx = 0;
+		sd.rx = 0;
+		sd.addr++;
+	}
+	/* if (!(state & PLAY)) */
+	/* 	sd.raddr = sd.waddr; */
+	/* if (!(state & RECORD)) */
+	/* 	sd.waddr = sd.raddr; */
+	/* if (abs(sd.waddr - sd.raddr) > 2) */
+	/* 	waaaa |= 4; */
+	if (loop.len && sd.addr == loop.start + loop.len){
+		if (sd.idx == loop.end_idx) {
+			sd.addr = loop.start;
+			sd.idx = 0;
+			/* TODO probably send last tx buffer */
+		}
+	}
+}
 
 void startaudio(void)
 {
@@ -325,7 +332,6 @@ void exti2_isr(void)		// MENU BUTTON
 	if (tick >= lastmenu + norepeat) {
 		lastmenu = tick;
 		/* menu button pressed */
-		/* send_codec_cmd(enable); */
 		dprintf(0, "menu pressed!\n");
 		/* statechange = MENU; */
 		if (state & PLAY) {
@@ -370,14 +376,22 @@ void spi2_isr(void)		// I2S data interrupt
 			put_sample(audio);
 		if (sr & SPI_SR_CHSIDE) {
 			rdata = audio;
-			// next time will be left channel -> handle state changes
 			if (enablerecord) {
 				state |= RECORD;
 				enablerecord = 0;
 			} else if (disablerecord) {
 				state &= ~RECORD;
 				disablerecord = 0;
-				end_record();
+				/* end_record(); */
+				if (!loop.len) {
+					loop.end_idx = sd.idx;
+					/* TODO addr should be set in handle_sd */
+					/* 	when it's sure we handled the */
+					/* 	last block */
+					loop.len = sd.addr  - loop.start;
+				}
+				sd.addr = loop.start;
+				sd.idx = 0;
 			}
 			if (enableplayback) {
 				state |= PLAY;
