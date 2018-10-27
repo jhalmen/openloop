@@ -35,7 +35,7 @@ void startaudio(void);
 volatile uint32_t tick = 0;		// system tick
 const uint8_t norepeat = 4;		// software debounce. [in ticks]
 volatile uint16_t chanvol[3] = {0,0,0};	// adc volume values. updated by dma
-volatile uint8_t waaaa;			// error accumulator
+volatile uint8_t waaaa[8];			// error accumulator
 
 struct dma_channel volumes = {
 	.rcc = RCC_DMA2,
@@ -162,7 +162,7 @@ int main(void)
 int16_t get_sample(void)
 {
 	if (sd.r)
-		waaaa |= 1;
+		waaaa[0]++;
 	sd.r = 1;
 	return sd.in[sd.idx];
 }
@@ -173,7 +173,7 @@ void put_sample(int16_t s)
 	static unsigned int atidx[512];
 	sd.out[sd.idx] = s;
 	if (sd.w) {
-		waaaa |= 2;
+		waaaa[1]++;
 		atidx[overwritten++] = sd.idx;
 	}
 	sd.w = 1;
@@ -199,12 +199,12 @@ void handle_sd(void)
 		if (sd.idx == 0) {
 			if (state & PLAY) {
 				if (sd.rxfer)
-					waaaa |= 64;
+					waaaa[2]++;
 				sd.rxfer = sd.in + 256;
 			}
 			if (state & RECORD) {
 				if (sd.txfer)
-					waaaa |= 32;
+					waaaa[3]++;
 				sd.txfer = sd.out + 256;
 			}
 			/* sd.txfer = (int16_t*)((int32_t)(sd.out + 256) * !!(state & RECORD)); */
@@ -212,13 +212,13 @@ void handle_sd(void)
 		if (sd.idx == 256) {
 			if (state & PLAY) {
 				if (sd.rxfer)
-					waaaa |= 64;
+					waaaa[2]++;
 				sd.rxfer = sd.in;
 			}
 			/* sd.txfer = (int16_t*)((int32_t)(sd.out) * !!(state & RECORD)); */
 			if (state & RECORD) {
 				if (sd.txfer)
-					waaaa |= 32;
+					waaaa[3]++;
 				sd.txfer = sd.out;
 		/* handle copying data to inbuffer on first recording */
 				/* if (sd.addr == loop.start) { */
@@ -332,7 +332,7 @@ void spi2_isr(void)		// I2S data interrupt
 	// TX
 	uint32_t sr = SPI_SR(I2S2);
 	if (sr & (SPI_SR_UDR | SPI_SR_OVR))
-		waaaa |= 8;	// i2s error! should never happen!
+		waaaa[4]++;	// i2s error! should never happen!
 	if (sr & SPI_SR_TXE) {			// I2S DATA TX
 		if (sr & SPI_SR_CHSIDE) {
 			SPI_DR(I2S2) = rdata;
@@ -343,7 +343,7 @@ void spi2_isr(void)		// I2S data interrupt
 	// RX
 	sr = SPI_SR(I2S2ext);
 	if (sr & (SPI_SR_UDR | SPI_SR_OVR))
-		waaaa |= 8;	// i2s error! should never happen!
+		waaaa[4]++;	// i2s error! should never happen!
 	if (sr & SPI_SR_RXNE) {			// I2S has data
 		int16_t audio = SPI_DR(I2S2ext);
 		if (state & PLAY) {
