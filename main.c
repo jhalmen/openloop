@@ -361,21 +361,25 @@ void spi2_isr(void)		// I2S data interrupt
 			enum s nextstate;
 			if (action && (nextstate = trans[state][action]) != state) {
 				action = 0;
-				if (state & RECORD && !(nextstate & RECORD))
-					if (!loop.len) {
-						loop.end_idx = sd.idx % 256;
-					/* TODO addr should be set in handle_sd */
-					/* 	when it's sure we handled the */
-					/* 	last block */
-						loop.len = sd.addr  - loop.start;
-					}
-				if (nextstate < state) {
+				// initial recording ends here
+				if (!loop.len && state & RECORD) {
+					loop.end_idx = sd.idx % 256;
+				/* TODO addr should be set in handle_sd */
+				/* 	when it's sure we handled the */
+				/* 	last block */
+					loop.len = sd.addr  - loop.start;
+				}
+				if (nextstate == STANDBY) {
 					sd.addr = loop.start;
 					sd.idx = 0;
 				}
 				state = nextstate;
 				if (state == PLAY && !loop.len)
 					state = RECORD;
+			} else {
+				// action doesn't change state
+				// remove it either way
+				action = 0;
 			}
 		} else {
 			ldata = audio;
