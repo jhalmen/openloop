@@ -30,10 +30,15 @@ uint8_t sd_dma_done(void);
 void handle_sd(void);
 void end_record(void);
 void startaudio(void);
+void leds_update(void);
+void loop_reset(void);
 
 /* globals */
 volatile uint32_t tick = 0;		// system tick
+const uint8_t tickhz = 5;		// frequency of system tick
 const uint8_t norepeat = 4;		// software debounce. [in ticks]
+const uint8_t resetloop = 10;		// ticks to hold for reset (+norepeat)
+uint8_t heartbeat = 10;		// heartbeat delay [in ticks]
 volatile uint16_t chanvol[3] = {0,0,0};	// adc volume values. updated by dma
 volatile uint8_t waaaa[8];			// error accumulator
 
@@ -135,6 +140,7 @@ int main(void)
 
 	encoder_setup();
 	buttons_setup();
+	leds_setup();
 	sddetect_setup();
 
 	send_codec_cmd(RESET());
@@ -148,15 +154,35 @@ int main(void)
 	}
 
 	sound_setup(&f16k);
-	systick_setup(5);
+	systick_setup(tickhz);
 
 	startaudio();
 	///////////////////////// LOOP STUFF /////////////////////////
 	while (1) {
 		handle_sd();
+		leds_update();
 		__asm__("nop");
 	}
 	return 0;
+}
+
+void leds_update(void)
+{
+	if (state & PLAY) {
+		gpio_set(GPIOB, GPIO3); // green
+	} else {
+		gpio_clear(GPIOB, GPIO3);
+	}
+	if (state & RECORD) {
+		gpio_set(GPIOB, GPIO10); // red
+	} else {
+		gpio_clear(GPIOB, GPIO10);
+	}
+	static uint32_t lasttick = 0;
+	if (tick > lasttick + heartbeat) {
+		lasttick += heartbeat;
+		gpio_toggle(GPIOA, GPIO10);
+	}
 }
 
 int16_t get_sample(void)
@@ -258,6 +284,13 @@ void startaudio(void)
 	spi_enable_tx_buffer_empty_interrupt(I2S2);
 }
 
+void loop_reset(void)
+{
+	loop.len = 0;
+	loop.end_idx = 0;
+	heartbeat = 10;
+}
+
 void sys_tick_handler(void)
 {
 	++tick;
@@ -277,7 +310,6 @@ void dma2_stream4_isr(void)	// VOLUMES
 		send_codec_cmd(MASTDA(chanvol[2] >> 2,1));
 		oldvol[2] = (chanvol[2] >> 2) << 2;
 	}
-	/* TODO check to use PGA here */
 	if ((chanvol[1] - oldvol[1] > 5) ||
 		(oldvol[1] - chanvol[1] > 5)) {
 		send_codec_cmd(ADCR(chanvol[1] >> 2,1));
@@ -303,14 +335,20 @@ if (exti_get_flag_status(EXTI11)){
 	}
 }
 if (exti_get_flag_status(EXTI12)){
-	exti_reset_request(EXTI12);
 	static uint32_t laststop = 0;
+	if (gpio_get(GPIOA, GPIO12)){	// rising
+	if (tick >= laststop + norepeat + resetloop) {
+		loop_reset();
+	}
+	} else {				// falling
 	if (tick >= laststop + norepeat) {
 		laststop = tick;
 		/* stop stomped! */
 		dprintf(0, "stop stomped!\n");
 		action |= STOP;
 	}
+	}
+	exti_reset_request(EXTI12);
 }
 }
 
@@ -322,7 +360,7 @@ void exti2_isr(void)		// MENU BUTTON
 		lastmenu = tick;
 		/* menu button pressed */
 		dprintf(0, "menu pressed!\n");
-		action |= START; // TODO MENU;
+		action |= MENU;
 	}
 }
 
@@ -358,7 +396,7 @@ void spi2_isr(void)		// I2S data interrupt
 			sd.idx++;
 		if (sr & SPI_SR_CHSIDE) {
 			rdata = audio;
-			enum s nextstate;
+			enum s nextstate = 0;
 			if (action && (nextstate = trans[state][action]) != state) {
 				action = 0;
 				// initial recording ends here
@@ -368,6 +406,7 @@ void spi2_isr(void)		// I2S data interrupt
 				/* 	when it's sure we handled the */
 				/* 	last block */
 					loop.len = sd.addr  - loop.start;
+					heartbeat = 2;
 				}
 				if (nextstate == STANDBY) {
 					sd.addr = loop.start;

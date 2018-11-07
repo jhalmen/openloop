@@ -51,6 +51,7 @@ void adc_setup(void);
 void encoder_setup(void);
 uint8_t encpos(void);
 void buttons_setup(void);
+void leds_setup(void);
 void sddetect_setup(void);
 uint8_t sddetect(void);
 enum sd_status sd_init(void);

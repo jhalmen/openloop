@@ -308,6 +308,17 @@ uint8_t encpos(void)
 	return timer_get_counter(TIM2) >> 2;
 }
 
+void leds_setup(void)
+{
+	rcc_periph_clock_enable(RCC_GPIOA);
+	rcc_periph_clock_enable(RCC_GPIOB);
+	gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT,
+			GPIO_PUPD_NONE, GPIO10);
+	gpio_mode_setup(GPIOB, GPIO_MODE_OUTPUT,
+			GPIO_PUPD_NONE, GPIO10 | GPIO3);
+}
+
+
 void buttons_setup(void)
 {
 	rcc_periph_clock_enable(RCC_GPIOA);
@@ -318,6 +329,7 @@ void buttons_setup(void)
 	nvic_enable_irq(NVIC_EXTI2_IRQ);
 	exti_select_source(EXTI2 | EXTI11 | EXTI12, GPIOA);
 	exti_set_trigger(EXTI2 | EXTI11 | EXTI12, EXTI_TRIGGER_FALLING);
+	exti_set_trigger(EXTI12, EXTI_TRIGGER_BOTH);
 	exti_enable_request(EXTI2 | EXTI11 | EXTI12);
 }
 
