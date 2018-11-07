@@ -402,17 +402,18 @@ void exti2_isr(void)		// MENU BUTTON
 
 void spi2_isr(void)		// I2S data interrupt
 {
-	static int16_t ldata = 0, rdata = 0;
+	static int16_t ldata = 0, rdata = 0, data = 0;
 	// TX
 	uint32_t sr = SPI_SR(I2S2);
 	if (sr & (SPI_SR_UDR | SPI_SR_OVR))
 		waaaa[4]++;	// i2s error! should never happen!
 	if (sr & SPI_SR_TXE) {			// I2S DATA TX
-		if (sr & SPI_SR_CHSIDE) {
-			SPI_DR(I2S2) = rdata;
-		} else {
-			SPI_DR(I2S2) = ldata;
-		}
+		SPI_DR(I2S2) = data;
+		/* if (sr & SPI_SR_CHSIDE) { */
+		/* 	SPI_DR(I2S2) = rdata; */
+		/* } else { */
+		/* 	SPI_DR(I2S2) = ldata; */
+		/* } */
 	}
 	// RX
 	sr = SPI_SR(I2S2ext);
@@ -420,18 +421,22 @@ void spi2_isr(void)		// I2S data interrupt
 		waaaa[4]++;	// i2s error! should never happen!
 	if (sr & SPI_SR_RXNE) {			// I2S has data
 		int16_t audio = SPI_DR(I2S2ext);
-		if (state & PLAY) {
-			int32_t temp = audio + get_sample();
-			__asm__("ssat %[dst], #16, %[src]" //SIGNED SATURATE
-					: [dst] "=r" (audio)
-					: [src] "r" (temp));
-		}
-		if (state & RECORD)
-			put_sample(audio);
-		if (state)
-			sd.idx++;
 		if (sr & SPI_SR_CHSIDE) {
-			rdata = audio;
+			int32_t temp = audio + ldata;
+			__asm__("ssat %[dst], #16, %[src]"
+					:[dst] "=r" (audio)
+					:[src] "r" (temp));
+			if (state & PLAY) {
+				temp = audio + get_sample();
+				__asm__("ssat %[dst], #16, %[src]" //SIGNED SATURATE
+						: [dst] "=r" (audio)
+						: [src] "r" (temp));
+			}
+			if (state & RECORD)
+				put_sample(audio);
+			if (state)
+				sd.idx++;
+			data = audio;
 			enum s nextstate = 0;
 			if (action && (nextstate = trans[state][action]) != state) {
 				action = 0;
