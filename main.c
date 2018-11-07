@@ -211,8 +211,16 @@ void leds_update(void)
 
 int16_t get_sample(void)
 {
-	if (sd.r)
+	static int over = 0;
+	static unsigned int atidx[512];
+	static unsigned int ataddr[512];
+	if (sd.r) {
 		waaaa[0]++;
+		atidx[over] = sd.idx;
+		ataddr[over++] = sd.addr;
+		if (over >= 512)
+			over = 511;
+	}
 	sd.r = 1;
 	return sd.in[sd.idx];
 }
