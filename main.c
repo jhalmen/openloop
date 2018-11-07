@@ -306,7 +306,7 @@ void handle_sd(void)
 		sd.addr++;
 	}
 	if (loop.len && sd.addr == loop.start + loop.len){
-		if (sd.idx % 256 == loop.end_idx) {
+		if (sd.idx % 256 >= loop.end_idx) {
 			sd.addr = loop.start;
 			sd.idx = 0;
 			/* TODO probably send last tx buffer */
