@@ -64,25 +64,29 @@ struct dma_channel volumes = {
 	.nvic = NVIC_DMA2_STREAM4_IRQ
 };
 
-struct i2sfreq f96k = {
-	.plln = 258,
-	.pllr = 3,
+struct i2sfreq f48k = {
+	// relative error: 0.0198%
+	.plln = 215,
+	.pllr = 5,
 	.div = 3,
 	.odd = 1
 };
 
-struct i2sfreq f44k1 = {
-	.plln = 429,
+struct i2sfreq f22k = {
+	// 22k050
+	// relative error: 0.1047%
+	.plln = 203,
 	.pllr = 4,
 	.div = 9,
-	.odd = 1
+	.odd = 0
 };
 
 struct i2sfreq f16k = {
-	.plln = 256,
-	.pllr = 5,
-	.div = 12,
-	.odd = 1
+	// relative error: 0.00375%
+	.plln = 213,
+	.pllr = 4,
+	.div = 13,
+	.odd = 0
 };
 
 enum {
