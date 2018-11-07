@@ -148,8 +148,12 @@ int main(void)
 	sddetect_setup();
 
 	send_codec_cmd(RESET());
-	send_codec_cmd(DAC_C1(1,0,0,1, 0b1001));
+	/* for testing purposes */
+	/* send_codec_cmd(DAC_C1(1,0,0,1, 0b1001)); */
+	/* send_codec_cmd(OMUX(0,1)); */
+	send_codec_cmd(DAC_C1(1,0,0,1, 0b1111));
 	dma_channel_init(&volumes);
+	nvic_set_priority(NVIC_DMA2_STREAM4_IRQ, 0);
 	adc_setup();
 
 	if (sddetect()) {
@@ -205,6 +209,8 @@ void put_sample(int16_t s)
 	if (sd.w) {
 		waaaa[1]++;
 		atidx[overwritten++] = sd.idx;
+		if (overwritten >= 512)
+			overwritten = 511;
 	}
 	sd.w = 1;
 }
