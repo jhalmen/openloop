@@ -217,7 +217,8 @@ void put_sample(int16_t s)
 
 uint8_t sd_dma_done(void)
 {
-	return !(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN);
+	return !(DMA_SCR(DMA2, DMA_STREAM3) & DMA_SxCR_EN)
+		|| SDIO_STA & SDIO_STA_DATAEND;
 }
 
 uint8_t card_busy(void)
@@ -275,6 +276,7 @@ void handle_sd(void)
 		sd.tx = 1;
 	}
 	if (state && state == ((uint8_t)(sd.rx << 1) | sd.tx)) {
+		/* TODO this block sometimes... */
 		sd.tx = 0;
 		sd.rx = 0;
 		sd.addr++;
@@ -421,6 +423,13 @@ void spi2_isr(void)		// I2S data interrupt
 				if (nextstate == STANDBY) {
 					sd.addr = loop.start;
 					sd.idx = 0;
+				}
+				if (state & RECORD && !(nextstate & RECORD)) {
+					// this is a hack to get around
+					// loop sometimes blocking upon ending
+					// recording
+					sd.txfer = 0;
+					sd.tx = 0;
 				}
 				state = nextstate;
 				if (state == PLAY && !loop.len)
