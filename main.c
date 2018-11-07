@@ -72,6 +72,22 @@ struct i2sfreq f48k = {
 	.odd = 1
 };
 
+struct i2sfreq f44k = {
+	// relative error: 0.1223%
+	.plln = 203,
+	.pllr = 4,
+	.div = 4,
+	.odd = 1
+};
+
+struct i2sfreq f32k = {
+	// relative error: 0.0976%
+	.plln = 205,
+	.pllr = 5,
+	.div = 5,
+	.odd = 0
+};
+
 struct i2sfreq f22k = {
 	// 22k050
 	// relative error: 0.1047%
@@ -151,7 +167,7 @@ int main(void)
 	/* for testing purposes */
 	/* send_codec_cmd(DAC_C1(1,0,0,1, 0b1001)); */
 	/* send_codec_cmd(OMUX(0,1)); */
-	send_codec_cmd(DAC_C1(1,0,0,1, 0b1111));
+	send_codec_cmd(DAC_C1(1,0,0,1, 0b1001));
 	dma_channel_init(&volumes);
 	nvic_set_priority(NVIC_DMA2_STREAM4_IRQ, 0);
 	adc_setup();
@@ -161,7 +177,7 @@ int main(void)
 			while (1) __asm__("wfi");
 	}
 
-	sound_setup(&f16k);
+	sound_setup(&f32k);
 	systick_setup(tickhz);
 
 	startaudio();
@@ -425,7 +441,7 @@ void spi2_isr(void)		// I2S data interrupt
 					sd.idx = 0;
 				}
 				if (state & RECORD && !(nextstate & RECORD)) {
-					// this is a hack to get around
+					// TODO this is a hack to get around
 					// loop sometimes blocking upon ending
 					// recording
 					sd.txfer = 0;
