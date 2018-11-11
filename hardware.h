@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef HARDWARE_H
 #define HARDWARE_H
 #include <libopencm3/stm32/rcc.h>
