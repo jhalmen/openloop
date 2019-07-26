@@ -1,0 +1,7 @@
+# build files
+*.d
+*.o
+generated.*
+*.elf
+*.map
+
