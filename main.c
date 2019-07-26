@@ -170,7 +170,7 @@ int main(void)
 	/* send_codec_cmd(OMUX(0,1)); */
 	send_codec_cmd(DAC_C1(1,0,0,1, 0b1001));
 	dma_channel_init(&volumes);
-	nvic_set_priority(NVIC_DMA2_STREAM4_IRQ, 0);
+	nvic_set_priority(NVIC_DMA2_STREAM4_IRQ, 0b11110000);
 	adc_setup();
 
 	if (sddetect()) {
