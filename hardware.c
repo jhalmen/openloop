@@ -223,11 +223,11 @@ void i2c_setup(void)
 	i2c_set_clock_frequency(I2C1, I2C_CR2_FREQ_42MHZ);
 	i2c_set_fast_mode(I2C1);
 	/* ~ 200kHz freq: */
-	/* i2c_set_ccr(I2C1, 38); */
+	i2c_set_ccr(I2C1, 38);
 	/* 100kHz freq: */
 	/* i2c_set_ccr(I2C1, 42); */
 	/* following results in approx 40kHz freq */
-	i2c_set_ccr(I2C1, 336);
+	/* i2c_set_ccr(I2C1, 336); */
 	/* max rise time = 300ns */
 	i2c_set_trise(I2C1, 13);
 	i2c_peripheral_enable(I2C1);
