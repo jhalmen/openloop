@@ -17,7 +17,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define COUNTERRORS 0
 #define dprintf(...)
+
 #include "hardware.h"
 #include "wm8778.h"
 #include "swo.h"
@@ -41,7 +43,17 @@ const uint8_t norepeat = 4;		// software debounce. [in ticks]
 const uint8_t resetloop = 10;		// ticks to hold for reset
 uint8_t heartbeat = 10;		// heartbeat delay [in ticks]
 volatile uint16_t chanvol[3] = {0,0,0};	// adc volume values. updated by dma
-volatile uint8_t waaaa[8];			// error accumulator
+
+#if COUNTERRORS
+enum ERRNUM {
+	ERROR_GETSAMPLE,
+	ERROR_PUTSAMPLE,
+	ERROR_RXFER,
+	ERROR_TXFER,
+	ERROR_I2S,
+	ERROR_LAST};
+volatile uint8_t error[ERROR_LAST];	// error accumulator
+#endif
 
 struct dma_channel volumes = {
 	.rcc = RCC_DMA2,
@@ -212,31 +224,35 @@ void leds_update(void)
 
 int16_t get_sample(void)
 {
+#if COUNTERRORS
 	static int over = 0;
 	static unsigned int atidx[512];
 	static unsigned int ataddr[512];
 	if (sd.r) {
-		waaaa[0]++;
+		error[ERROR_GETSAMPLE]++;
 		atidx[over] = sd.idx;
 		ataddr[over++] = sd.addr;
 		if (over >= 512)
 			over = 511;
 	}
+#endif
 	sd.r = 1;
 	return sd.in[sd.idx];
 }
 
 void put_sample(int16_t s)
 {
+#if COUNTERRORS
 	static int overwritten = 0;
 	static unsigned int atidx[512];
-	sd.out[sd.idx] = s;
 	if (sd.w) {
-		waaaa[1]++;
+		error[ERROR_PUTSAMPLE]++;
 		atidx[overwritten++] = sd.idx;
 		if (overwritten >= 512)
 			overwritten = 511;
 	}
+#endif
+	sd.out[sd.idx] = s;
 	sd.w = 1;
 }
 
@@ -260,27 +276,35 @@ void handle_sd(void)
 		sd.idx %= 512;
 		if (sd.idx == 0) {
 			if (state & PLAY) {
+#if COUNTERRORS
 				if (sd.rxfer)
-					waaaa[2]++;
+					error[ERROR_RXFER]++;
+#endif
 				sd.rxfer = sd.in + 256;
 			}
 			if (state & RECORD) {
+#if COUNTERRORS
 				if (sd.txfer)
-					waaaa[3]++;
+					error[ERROR_TXFER]++;
+#endif
 				sd.txfer = sd.out + 256;
 			}
 			/* sd.txfer = (int16_t*)((int32_t)(sd.out + 256) * !!(state & RECORD)); */
 		}
 		if (sd.idx == 256) {
 			if (state & PLAY) {
+#if COUNTERRORS
 				if (sd.rxfer)
-					waaaa[2]++;
+					error[ERROR_RXFER]++;
+#endif
 				sd.rxfer = sd.in;
 			}
 			/* sd.txfer = (int16_t*)((int32_t)(sd.out) * !!(state & RECORD)); */
 			if (state & RECORD) {
+#if COUNTERRORS
 				if (sd.txfer)
-					waaaa[3]++;
+					error[ERROR_TXFER]++;
+#endif
 				sd.txfer = sd.out;
 		/* handle copying data to inbuffer on first recording */
 				/* if (sd.addr == loop.start) { */
@@ -406,8 +430,10 @@ void spi2_isr(void)		// I2S data interrupt
 	static int16_t ldata = 0, rdata = 0, data = 0;
 	// TX
 	uint32_t sr = SPI_SR(I2S2);
+#if COUNTERRORS
 	if (sr & (SPI_SR_UDR | SPI_SR_OVR))
-		waaaa[4]++;	// i2s error! should never happen!
+		error[ERROR_I2S]++;	// i2s error! should never happen!
+#endif
 	if (sr & SPI_SR_TXE) {			// I2S DATA TX
 		SPI_DR(I2S2) = data;
 		/* if (sr & SPI_SR_CHSIDE) { */
@@ -418,8 +444,10 @@ void spi2_isr(void)		// I2S data interrupt
 	}
 	// RX
 	sr = SPI_SR(I2S2ext);
+#if COUNTERRORS
 	if (sr & (SPI_SR_UDR | SPI_SR_OVR))
-		waaaa[4]++;	// i2s error! should never happen!
+		error[ERROR_I2S]++;	// i2s error! should never happen!
+#endif
 	if (sr & SPI_SR_RXNE) {			// I2S has data
 		int16_t audio = SPI_DR(I2S2ext);
 		if (sr & SPI_SR_CHSIDE) {
