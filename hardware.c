@@ -327,12 +327,14 @@ void buttons_setup(void)
 	gpio_mode_setup(GPIOA, GPIO_MODE_INPUT,
 			GPIO_PUPD_PULLUP, GPIO2 | GPIO11 | GPIO12);
 	rcc_periph_clock_enable(RCC_SYSCFG);
-	nvic_enable_irq(NVIC_EXTI15_10_IRQ);
-	nvic_enable_irq(NVIC_EXTI2_IRQ);
 	exti_select_source(EXTI2 | EXTI11 | EXTI12, GPIOA);
-	exti_set_trigger(EXTI2 | EXTI11 | EXTI12, EXTI_TRIGGER_FALLING);
+	exti_set_trigger(EXTI2 | EXTI11, EXTI_TRIGGER_FALLING);
 	exti_set_trigger(EXTI12, EXTI_TRIGGER_BOTH);
 	exti_enable_request(EXTI2 | EXTI11 | EXTI12);
+	nvic_set_priority(NVIC_EXTI15_10_IRQ, 0b01110000);
+	nvic_set_priority(NVIC_EXTI2_IRQ, 0b01110000);
+	nvic_enable_irq(NVIC_EXTI15_10_IRQ);
+	nvic_enable_irq(NVIC_EXTI2_IRQ);
 }
 
 void sddetect_setup(void)

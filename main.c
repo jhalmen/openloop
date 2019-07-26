@@ -38,7 +38,7 @@ void loop_reset(void);
 volatile uint32_t tick = 0;		// system tick
 const uint8_t tickhz = 5;		// frequency of system tick
 const uint8_t norepeat = 4;		// software debounce. [in ticks]
-const uint8_t resetloop = 10;		// ticks to hold for reset (+norepeat)
+const uint8_t resetloop = 10;		// ticks to hold for reset
 uint8_t heartbeat = 10;		// heartbeat delay [in ticks]
 volatile uint16_t chanvol[3] = {0,0,0};	// adc volume values. updated by dma
 volatile uint8_t waaaa[8];			// error accumulator
@@ -361,7 +361,7 @@ void dma2_stream4_isr(void)	// VOLUMES
 
 void exti15_10_isr(void)	// START & STOP BUTTONS
 {
-if (exti_get_flag_status(EXTI11)){
+if (exti_get_flag_status(EXTI11)){	// START BUTTON
 	exti_reset_request(EXTI11);
 	static uint32_t laststart = 0;
 	if (tick >= laststart + norepeat) {
@@ -371,19 +371,19 @@ if (exti_get_flag_status(EXTI11)){
 		action |= START;
 	}
 }
-if (exti_get_flag_status(EXTI12)){
+if (exti_get_flag_status(EXTI12)){	// STOP BUTTON
 	static uint32_t laststop = 0;
-	if (gpio_get(GPIOA, GPIO12)){	// rising
-	if (tick >= laststop + norepeat + resetloop) {
-		loop_reset();
-	}
-	} else {				// falling
-	if (tick >= laststop + norepeat) {
-		laststop = tick;
-		/* stop stomped! */
-		dprintf(0, "stop stomped!\n");
-		action |= STOP;
-	}
+	if (gpio_get(GPIOA, GPIO12)){	// rising edge
+		if (tick >= laststop + resetloop) {
+			loop_reset();
+		}
+	} else {			// falling edge
+		if (tick >= laststop + norepeat) {
+			laststop = tick;
+			/* stop stomped! */
+			dprintf(0, "stop stomped!\n");
+			action |= STOP;
+		}
 	}
 	exti_reset_request(EXTI12);
 }
