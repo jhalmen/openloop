@@ -19,8 +19,7 @@
 
 #include "hardware.h"
 
-/* TODO: this should probably go into wm8778.c */
-void send_codec_cmd(uint16_t cmd)
+void codec_send_cmd(uint16_t cmd)
 {
 	uint8_t data[2] = {cmd>>8, cmd};
 	i2c_transfer7(I2C1, 0x34>>1, data, 2, 0, 0);

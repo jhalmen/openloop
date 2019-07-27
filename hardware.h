@@ -58,7 +58,7 @@ uint8_t sddetect(void);
 enum sd_status sd_init(void);
 
 
-void send_codec_cmd(uint16_t cmd);
+void codec_send_cmd(uint16_t cmd);
 void i2c_setup(void);
 
 

@@ -176,11 +176,11 @@ int main(void)
 	leds_setup();
 	sddetect_setup();
 
-	send_codec_cmd(RESET());
+	codec_send_cmd(WM8778_RESET());
 	/* for testing purposes */
-	/* send_codec_cmd(DAC_C1(1,0,0,1, 0b1001)); */
-	/* send_codec_cmd(OMUX(0,1)); */
-	send_codec_cmd(DAC_C1(1,0,0,1, 0b1001));
+	/* enable volume control zero cross detection */
+	codec_send_cmd(WM8778_DAC_C1(1,0,0,0, 0b1001));
+
 	dma_channel_init(&volumes);
 	nvic_set_priority(NVIC_DMA2_STREAM4_IRQ, 0b11110000);
 	adc_setup();
@@ -366,19 +366,16 @@ void dma2_stream4_isr(void)	// VOLUMES
 	dma_clear_interrupt_flags(volumes.dma, volumes.stream, DMA_TCIF);
 	static uint16_t oldvol[3] = {0xffff, 0xffff, 0xffff};
 	/* input gains and output volume */
-	if ((chanvol[2] - oldvol[2] > 5) ||
-		(oldvol[2] - chanvol[2] > 5)) {
-		send_codec_cmd(MASTDA(chanvol[2] >> 2,1));
+	if (abs(chanvol[2] - oldvol[2]) > 5) {
+		codec_send_cmd(WM8778_MASTDA(chanvol[2] >> 2,1));
 		oldvol[2] = (chanvol[2] >> 2) << 2;
 	}
-	if ((chanvol[1] - oldvol[1] > 5) ||
-		(oldvol[1] - chanvol[1] > 5)) {
-		send_codec_cmd(ADCR(chanvol[1] >> 2,1));
+	if (abs(chanvol[1] - oldvol[1]) > 5) {
+		codec_send_cmd(WM8778_ADCR(chanvol[1] >> 2,1));
 		oldvol[1] = (chanvol[1] >> 2) << 2;
 	}
-	if ((chanvol[0] - oldvol[0] > 5) ||
-		(oldvol[0] - chanvol[0] > 5)) {
-		send_codec_cmd(ADCL(chanvol[0] >> 2,1));
+	if (abs(chanvol[0] - oldvol[0] > 5)) {
+		codec_send_cmd(WM8778_ADCL(chanvol[0] >> 2,1));
 		oldvol[0] = (chanvol[0] >> 2) << 2;
 	}
 }
