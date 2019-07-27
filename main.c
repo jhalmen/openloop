@@ -41,7 +41,7 @@ volatile uint32_t tick = 0;		// system tick
 const uint8_t tickhz = 5;		// frequency of system tick
 const uint8_t norepeat = 4;		// software debounce. [in ticks]
 const uint8_t resetloop = 10;		// ticks to hold for reset
-uint8_t heartbeat = 10;		// heartbeat delay [in ticks]
+uint8_t heartbeat = 10;			// heartbeat delay [in ticks]
 volatile uint16_t chanvol[3] = {0,0,0};	// adc volume values. updated by dma
 
 #if COUNTERRORS
@@ -131,7 +131,8 @@ volatile enum s{
 	OVRDUB = 3
 } state = STANDBY;
 
-const enum s trans[][5] = {{0,	PLAY,	STANDBY,	0,	STANDBY},
+const enum s trans[][5] = {
+			{0,	PLAY,	STANDBY,	0,	STANDBY},
 			{0,	PLAY,	STANDBY,	0,	RECORD},
 			{0,	OVRDUB,	STANDBY,	0,	PLAY},
 			{0,	PLAY,	STANDBY,	0,	OVRDUB}};
