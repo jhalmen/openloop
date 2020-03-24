@@ -21,8 +21,8 @@
 
 void dma_print_status(struct dma_channel *chan)
 {
-	dprintf(0, "--- DMA %d STREAM %d STATUS ---\n", (chan->dma == DMA2) ? 2:1,
-				chan->stream);
+	dprintf(0, "--- DMA %d STREAM %d STATUS ---\n",
+		(chan->dma == DMA2) ? 2 : 1, chan->stream);
 	dprintf(0, "ISR: %8x\n", ((chan->stream > 4 ?
 				DMA_HISR(chan->dma) : DMA_LISR(chan->dma))
 				>> DMA_ISR_OFFSET(chan->stream)) & 61);
@@ -66,15 +66,17 @@ void dma_channel_init(struct dma_channel *chan)
 	/* DMA_SCR(chan->dma, chan->stream) = */
 
 	dma_set_peripheral_address(chan->dma, chan->stream, chan->paddress);
-	if(chan->doublebuf) {
+	if (chan->doublebuf) {
 		dma_enable_double_buffer_mode(chan->dma, chan->stream);
-		dma_set_memory_address_1(chan->dma, chan->stream, chan->maddress1);
+		dma_set_memory_address_1(chan->dma, chan->stream,
+			chan->maddress1);
 	} else if (chan->circ) {
 		dma_enable_circular_mode(chan->dma, chan->stream);
 	}
 	dma_set_memory_address(chan->dma, chan->stream, chan->maddress);
 	if (!chan->periphflwctrl) {
-		dma_set_number_of_data(chan->dma, chan->stream, chan->numberofdata);
+		dma_set_number_of_data(chan->dma, chan->stream,
+			chan->numberofdata);
 	}
 	if (chan->interrupts) {
 		nvic_enable_irq(chan->nvic);
@@ -85,8 +87,8 @@ void dma_channel_init(struct dma_channel *chan)
 
 void dma_channel_enable(struct dma_channel *chan)
 {
-	dma_clear_interrupt_flags(chan->dma, chan->stream, DMA_TCIF | DMA_HTIF |
-					DMA_TEIF | DMA_DMEIF | DMA_FEIF);
+	dma_clear_interrupt_flags(chan->dma, chan->stream,
+		DMA_TCIF | DMA_HTIF | DMA_TEIF | DMA_DMEIF | DMA_FEIF);
 	dma_enable_stream(chan->dma, chan->stream);
 }
 

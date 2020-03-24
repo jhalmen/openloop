@@ -395,19 +395,16 @@ if (exti_get_flag_status(EXTI11)){	// START BUTTON
 }
 if (exti_get_flag_status(EXTI12)){	// STOP BUTTON
 	static uint32_t laststop = 0;
-	if (gpio_get(GPIOA, GPIO12)){	// rising edge
-		if (tick >= laststop + resetloop) {
+	exti_reset_request(EXTI12);
+	if (tick >= laststop + norepeat) {
+		if (state == STANDBY ) {
 			loop_reset();
 		}
-	} else {			// falling edge
-		if (tick >= laststop + norepeat) {
-			laststop = tick;
 			/* stop stomped! */
-			dprintf(0, "stop stomped!\n");
-			action |= STOP;
-		}
+		laststop = tick;
+		dprintf(0, "stop stomped!\n");
+		action |= STOP;
 	}
-	exti_reset_request(EXTI12);
 }
 }
 
@@ -488,8 +485,9 @@ void spi2_isr(void)		// I2S data interrupt
 					sd.tx = 0;
 				}
 				state = nextstate;
-				if (state == PLAY && !loop.len)
+				if (state == PLAY && !loop.len) {
 					state = RECORD;
+				}
 			} else {
 				// action doesn't change state
 				// remove it either way

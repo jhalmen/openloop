@@ -23,32 +23,33 @@
 #include <libopencm3/cm3/itm.h>
 #include "swo.h"
 
-extern uint32_t rcc_ahb_frequency;
-int _write(int file, char *ptr, int len)
+int _write(int chan, char *ptr, int len)
 {
-	for (int i = 0; i < len; ++i)
-		ITM_SendChar(file, *ptr++);
+	for (int i = 0; i < len; ++i) {
+		while (!(ITM_STIM32(chan) & ITM_STIM_FIFOREADY));
+		ITM_STIM32(chan) = *ptr++;
+	}
 	return len;
 }
 
-void ITM_SendChar(int chan, char c)
+void enable_swo(long int ahb_freq, long int swo_freq)
 {
-	while (!(ITM_STIM32(chan) & ITM_STIM_FIFOREADY));
-	ITM_STIM32(chan) = c;
-}
-
-void enable_swo(int swo_freq)
-{
-	SCS_DEMCR = SCS_DEMCR_TRCENA;	// enable all features configured and controlled by DWT, ITM, ETM, TPIU
+	/* enable all features configured and controlled by DWT, ITM, ETM, TPIU */
+	SCS_DEMCR = SCS_DEMCR_TRCENA;
 	DBGMCU_CR = DBGMCU_CR_TRACE_IOEN;
 	TPIU_CSPSR = 1;
 
-	TPIU_SPPR = TPIU_SPPR_ASYNC_MANCHESTER;	/* trace port protocol = Manchester */
-	TPIU_ACPR = (rcc_ahb_frequency / swo_freq) - 1;	// set prescaler
-	TPIU_FFCR = TPIU_FFCR_TRIGIN;	// turn off formatter (TPIU_FFCR_ENFCONT)
+	/* trace port protocol = Manchester */
+	TPIU_SPPR = TPIU_SPPR_ASYNC_MANCHESTER;
+	/* set prescaler */
+	TPIU_ACPR = (ahb_freq / swo_freq) - 1;
+	/* turn off formatter (TPIU_FFCR_ENFCONT) */
+	TPIU_FFCR = TPIU_FFCR_TRIGIN;
 
 	ITM_LAR = 0xC5ACCE55;
 	ITM_TCR = ITM_TCR_SWOENA | ITM_TCR_SYNCENA | ITM_TCR_ITMENA;
-	ITM_TPR = 0; /* all ports accessible unprivileged */
-	ITM_TER[0] = 0x7;/* enable 3 stimulus channels, used with ITM_SendChar() */
+	/* all ports accessible unprivileged */
+	ITM_TPR = 0;
+	/* enable 3 stimulus channels, used with ITM_putc() */
+	ITM_TER[0] = 0x7;
 }

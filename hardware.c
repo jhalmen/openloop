@@ -77,22 +77,15 @@ void pll_setup(void)
 
 void systick_setup(uint32_t tick_frequency)
 {
-	/* systick_set_frequency (desired_systick_freq, current_freq_ahb) */
 	/* returns false if frequency can't be set */
-	if (!systick_set_frequency(tick_frequency,rcc_ahb_frequency))
-		while (1);
+	while (!systick_set_frequency(tick_frequency, rcc_ahb_frequency));
 	systick_counter_enable();
 	systick_interrupt_enable();
 }
 
 void plli2s_setup(uint16_t n, uint8_t r)
 {
-	/* configure plli2s */
-	/* void rcc_plli2s_config(uint16_t n, uint8_t r) */
-	RCC_PLLI2SCFGR = (
-		((n & RCC_PLLI2SCFGR_PLLI2SN_MASK) << RCC_PLLI2SCFGR_PLLI2SN_SHIFT) |
-		((r & RCC_PLLI2SCFGR_PLLI2SR_MASK) << RCC_PLLI2SCFGR_PLLI2SR_SHIFT));
-	/* enable pll */
+	rcc_plli2s_config(n, r);
 	rcc_osc_on(RCC_PLLI2S);
 	rcc_wait_for_osc_ready(RCC_PLLI2S);
 }
@@ -328,7 +321,7 @@ void buttons_setup(void)
 	rcc_periph_clock_enable(RCC_SYSCFG);
 	exti_select_source(EXTI2 | EXTI11 | EXTI12, GPIOA);
 	exti_set_trigger(EXTI2 | EXTI11, EXTI_TRIGGER_FALLING);
-	exti_set_trigger(EXTI12, EXTI_TRIGGER_BOTH);
+	exti_set_trigger(EXTI12, EXTI_TRIGGER_FALLING);
 	exti_enable_request(EXTI2 | EXTI11 | EXTI12);
 	nvic_set_priority(NVIC_EXTI15_10_IRQ, 0b01110000);
 	nvic_set_priority(NVIC_EXTI2_IRQ, 0b01110000);

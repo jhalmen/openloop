@@ -49,7 +49,7 @@ struct dma_channel {
 };
 
 void dma_print_status(struct dma_channel *chan);
-void dma_channel_init(struct dma_channel* chan);
+void dma_channel_init(struct dma_channel *chan);
 void dma_channel_enable(struct dma_channel *chan);
 void dma_channel_disable(struct dma_channel *chan);
 #endif

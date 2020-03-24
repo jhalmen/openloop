@@ -21,7 +21,6 @@
 #define SWO_H
 
 int _write(int file, char *ptr, int len);
-void ITM_SendChar(int chan, char c);
-void enable_swo(int swo_freq);
+void enable_swo(long int ahb_freq, long int swo_freq);
 
 #endif

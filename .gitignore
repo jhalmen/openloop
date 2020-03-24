@@ -5,3 +5,5 @@ generated.*
 *.elf
 *.map
 tags
+*.stylecheck
+*.bak
